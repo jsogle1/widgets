@@ -6,7 +6,7 @@ const Widget = () => {
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
 
-  // Use the useJimuMapView hook to get the map view provided by Experience Builder
+  // Use the useJimuMapView hook to get the first map widget's view
   const jimuMapView = useJimuMapView();
 
   const handleMapClick = async () => {
@@ -38,7 +38,7 @@ const Widget = () => {
     <div>
       <h1>Site Location</h1>
 
-      {/* Render the JimuMapViewComponent to listen for map clicks */}
+      {/* Render the JimuMapViewComponent to automatically connect to the first map widget */}
       <JimuMapViewComponent />
 
       {/* Render the clicked point information */}
@@ -58,10 +58,6 @@ const Widget = () => {
         </table>
       )}
     </div>
-  );
-};
-
-export default Widget;
   );
 };
 
