@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { JimuMapViewComponent } from 'jimu-arcgis';
 import { Point } from 'esri/geometry';
+import QueryTask from 'esri/tasks/QueryTask';
+import Query from 'esri/tasks/support/Query';
 
 const Widget = () => {
   const [clickedPoint, setClickedPoint] = useState(null);
