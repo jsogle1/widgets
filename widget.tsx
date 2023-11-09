@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { JimuMapViewComponent } from 'jimu-arcgis';
+import { Point } from 'esri/geometry';
 
 const Widget = () => {
   const [clickedPoint, setClickedPoint] = useState(null);
   const [state, setState] = useState(null);
   const [county, setCounty] = useState(null);
   const [city, setCity] = useState(null);
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
 
   // Define a function to handle map click events
   const handleMapClick = async (jimuMapView) => {
@@ -22,15 +25,20 @@ const Widget = () => {
         setClickedPoint(mapPoint);
 
         // Query the state, county, and city based on the clicked point's latitude and longitude.
-        const { state: stateValue, county: countyValue, city: cityValue } = await queryAttributesFromFeatureServices(
-          mapPoint.latitude,
-          mapPoint.longitude
-        );
+        const {
+          state: stateValue,
+          county: countyValue,
+          city: cityValue,
+        } = await queryAttributesFromFeatureServices(mapPoint.latitude, mapPoint.longitude);
 
         // Update the state, county, and city values.
         setState(stateValue);
         setCounty(countyValue);
         setCity(cityValue);
+
+        // Set the latitude and longitude based on the clicked point
+        setLatitude(mapPoint.latitude.toFixed(3));
+        setLongitude(mapPoint.longitude.toFixed(3));
 
         // Remove the click handler after a single click
         clickHandler.remove();
@@ -101,11 +109,11 @@ const Widget = () => {
           <tbody>
             <tr>
               <th>Latitude</th>
-              <td>{clickedPoint.latitude}</td>
+              <td>{latitude}</td>
             </tr>
             <tr>
               <th>Longitude</th>
-              <td>{clickedPoint.longitude}</td>
+              <td>{longitude}</td>
             </tr>
             <tr>
               <th>State</th>
@@ -123,6 +131,11 @@ const Widget = () => {
         </table>
       )}
     </div>
+  );
+};
+
+export default Widget;
+
   );
 };
 
