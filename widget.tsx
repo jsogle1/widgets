@@ -21,6 +21,13 @@ const Widget = () => {
       mapPoint.longitude
     );
 
+    // Log the retrieved attributes to the console for debugging.
+    console.log('Retrieved Attributes:', {
+      stateAttribute: stateValue,
+      countyAttribute: countyValue,
+      cityAttribute: cityValue,
+    });
+
     // Update the state, county, and city values.
     setStateAttribute(stateValue);
     setCountyAttribute(countyValue);
