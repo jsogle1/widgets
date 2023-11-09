@@ -1,29 +1,34 @@
 import React, { useState } from 'react';
-import { JimuMapViewComponent } from 'jimu-arcgis';
+import { JimuMapViewComponent, useJimuMapView } from 'jimu-arcgis';
 
 const Widget = () => {
   const [clickedPoint, setClickedPoint] = useState(null);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
 
-  const handleMapClick = async (jimuMapView) => {
+  // Use the useJimuMapView hook to get the map view provided by Experience Builder
+  const jimuMapView = useJimuMapView();
+
+  const handleMapClick = async () => {
     try {
-      // Get the map view from JimuMapViewComponent
-      const mapView = await jimuMapView.view;
+      if (jimuMapView) {
+        // Get the map view from JimuMapView
+        const mapView = await jimuMapView.view;
 
-      // Listen for a single click event on the map view
-      const clickHandler = mapView.on('click', async (event) => {
-        // Extract the mapPoint from the click event.
-        const { mapPoint } = event;
+        // Listen for a single click event on the map view
+        const clickHandler = mapView.on('click', async (event) => {
+          // Extract the mapPoint from the click event.
+          const { mapPoint } = event;
 
-        // Set the clicked point, latitude, and longitude
-        setClickedPoint(mapPoint);
-        setLatitude(mapPoint.latitude.toFixed(3));
-        setLongitude(mapPoint.longitude.toFixed(3));
+          // Set the clicked point, latitude, and longitude
+          setClickedPoint(mapPoint);
+          setLatitude(mapPoint.latitude.toFixed(3));
+          setLongitude(mapPoint.longitude.toFixed(3));
 
-        // Remove the click handler after a single click
-        clickHandler.remove();
-      });
+          // Remove the click handler after a single click
+          clickHandler.remove();
+        });
+      }
     } catch (error) {
       console.error('Error handling map click:', error);
     }
@@ -34,7 +39,7 @@ const Widget = () => {
       <h1>Site Location</h1>
 
       {/* Render the JimuMapViewComponent to listen for map clicks */}
-      <JimuMapViewComponent onActiveViewChange={handleMapClick} />
+      <JimuMapViewComponent />
 
       {/* Render the clicked point information */}
       {clickedPoint && (
@@ -53,6 +58,10 @@ const Widget = () => {
         </table>
       )}
     </div>
+  );
+};
+
+export default Widget;
   );
 };
 
