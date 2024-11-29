@@ -1,0 +1,23 @@
+{
+    "name": "CensusBufferWidget",
+    "label": "Census Buffer Widget",
+    "description": "A widget to buffer selected features, clip census data, and recalculate statistics.",
+    "framework": "react",
+    "version": "1.0.0",
+    "author": "Jared S. Ogle",
+    "type": "widget",
+    "dependency": "jimu-core",
+    "properties": {
+      "hasSettingPage": false,
+      "hasConfig": false
+    },
+    "requiredResources": [
+      {
+        "type": "map"
+      },
+      {
+        "type": "webmap"
+      }
+    ]
+  }
+  

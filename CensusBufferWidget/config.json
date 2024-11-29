@@ -1,0 +1,5 @@
+{
+  "bufferDistance": 1000,
+  "unit": "meters",
+  "censusLayerUrl": "https://example.com/arcgis/rest/services/CensusLayer/FeatureServer/0"
+}
