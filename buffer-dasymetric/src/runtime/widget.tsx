@@ -24,7 +24,7 @@ const Widget = (props: AllWidgetProps<{}>) => {
       <h1>Buffer Dasymetric Widget</h1>
       <p>Map integration test. Link or add a Map widget.</p>
       <JimuMapViewComponent
-        useMapWidgetId={props.useMapWidgetIds?.[0] || 'WIDGET_1'} // Try default, log to find correct ID
+        useMapWidgetId={props.useMapWidgetIds?.[0] || 'widget_25'} // Try default, log to find correct ID
         onActiveViewChange={activeViewChangeHandler}
       />
     </div>
