@@ -1,0 +1,19 @@
+{
+  "name": "buffer-dasymetric",
+  "label": "Buffer Dasymetric Population",
+  "type": "widget",
+  "version": "1.0.0",
+  "exbVersion": "1.15.0",
+  "author": "EPA",
+  "description": "A custom widget for buffer-based dasymetric population analysis, including map integration and CSV export.",
+  "copyright": "",
+  "license": "http://www.apache.org/licenses/LICENSE-2.0",
+  "properties": {},
+  "translatedLocales": [
+    "en"
+  ],
+  "defaultSize": {
+    "width": 400,
+    "height": 400
+  }
+}
