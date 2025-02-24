@@ -8,12 +8,15 @@
   "description": "A custom widget for buffer-based dasymetric population analysis, including map integration and CSV export.",
   "copyright": "",
   "license": "http://www.apache.org/licenses/LICENSE-2.0",
-  "properties": {},
+  "properties": {
+    "useMapWidgetIds": [{ "isMapWidget": true }]
+  },
   "translatedLocales": [
     "en"
   ],
   "defaultSize": {
     "width": 400,
     "height": 400
-  }
+  },
+  "dependency": ["jimu-arcgis"]
 }
