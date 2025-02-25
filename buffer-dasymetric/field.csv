@@ -1,0 +1,4 @@
+Title,ID,ShortURL,URL,population field, area field,adjusted population field, adjusted area field, population density field
+CensusBlocks1990,3ca2000e3b224944be538c66457ea654,https://arcg.is/1rjXiG4,https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/CensusBlocks1990/FeatureServer,TOTALPOP,ACRES,Clip_Pop,Clip_Area,POP_DEN
+CensusBlocks2000,4a1b84335d8d4f7cb7ef842c113ea324,https://arcg.is/1PCryG0,https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/CensusBlocks2000/FeatureServer,TOTALPOP,ACRES,Clip_Pop,Clip_Area,POP_DEN
+CensusBlocks2010,11ea9ac6487049d18976b82b70414c95,https://arcg.is/iin5e0,https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/CensusBlocks2010/FeatureServer,TOTALPOP,ACRES,Clip_Pop,Clip_Area,POP_DEN
