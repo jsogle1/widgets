@@ -22,24 +22,31 @@ const Widget = (props: AllWidgetProps<{}>) => {
   const activeViewChangeHandler = (jmv: JimuMapView) => {
     console.log('Map view received:', jmv ? 'Valid' : 'Null');
     if (!jmv) {
-      console.error('No map view available. Check Map widget ID or linkage.');
+      console.error('No map view available. Check Map widget linkage or ID.');
       return;
     }
     setState({ ...state, jimuMapView: jmv });
   };
 
+  const hasMapWidget = props.useMapWidgetIds && props.useMapWidgetIds.length > 0;
+
   return (
     <div className="widget-dasymetric jimu-widget" style={{ padding: '10px' }}>
       <h1>Buffer Dasymetric Widget</h1>
-      <p>Testing Map widget ID detection. Link or add a Map widget.</p>
+      <p>Testing Map widget linkage. Link or add a Map widget.</p>
       <p>Map Widget IDs: {state.mapWidgetIds ? state.mapWidgetIds.join(', ') : 'None found'}</p>
       <p>All Widget IDs: {props.allWidgetIds ? props.allWidgetIds.join(', ') : 'None found'}</p>
-      <JimuMapViewComponent
-        useMapWidgetId={props.useMapWidgetIds?.[0]} // Dynamic linkage
-        onActiveViewChange={activeViewChangeHandler}
-      />
+      <p>Has Map Widget: {hasMapWidget ? 'Yes' : 'No'}</p> {/* New display for testing */}
+      {!hasMapWidget ? (
+        <p>Please add a Map widget and link it to this widget.</p>
+      ) : (
+        <JimuMapViewComponent
+          useMapWidgetId={props.useMapWidgetIds?.[0]}
+          onActiveViewChange={activeViewChangeHandler}
+        />
+      )}
     </div>
   );
 };
-//this.props.useMapWidgetIds && this.props.useMapWidgetIds.length > 0)
+
 export default Widget;
