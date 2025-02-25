@@ -35,7 +35,7 @@ const Widget = (props: AllWidgetProps<{}>) => {
       <p>Map Widget IDs: {state.mapWidgetIds ? state.mapWidgetIds.join(', ') : 'None found'}</p>
       <p>All Widget IDs: {props.allWidgetIds ? props.allWidgetIds.join(', ') : 'None found'}</p>
       <JimuMapViewComponent
-        useMapWidgetId={props.useMapWidgetIds?.[0] || 'WIDGET_1'}
+        useMapWidgetId={props.useMapWidgetIds?.[0]} // Dynamic linkage
         onActiveViewChange={activeViewChangeHandler}
       />
     </div>
