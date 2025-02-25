@@ -1,6 +1,11 @@
-ERROR in ./node_modules/csvjson/src/stream.js 17:14-31
-  Module not found: Error: Can't resolve 'stream' in 'C:\Users\jogle\arcgis-experience-builder-1.15\ArcGISExperienceBuilder\client\node_modules\csvjson\src'
-  Did you mean './stream'?
-  Requests that should resolve in the current directory need to start with './'.
-  Requests that start with a name are treated as module requests and resolve within module directories (node_modules).
-  If changing the source code is not an option there is also a resolve options called 'preferRelative' which tries to resolve these kind of requests in the current directory too.
+Uncaught (in promise) Error: The input unit and the spatial reference unit are not of the same unit type.ie Linear vs.Angular
+    at v.Xk (geometryEngineBase.js:565:490)
+    at v.buffer (geometryEngineBase.js:628:16)
+    at g.Xa [as buffer] (geometryEngineBase.js:16:6)
+    at c.buffer (geometryEngine.js:4:418)
+    at widget.tsx:71:7
+    at Array.map (<anonymous>)
+    at Array.<anonymous> (index.js:2:77998)
+    at widget.tsx:70:37
+    at Generator.next (<anonymous>)
+    at set-public-path.ts:7:52
