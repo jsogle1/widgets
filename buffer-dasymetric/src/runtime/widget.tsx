@@ -70,8 +70,24 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // Project the point to Web Mercator (wkid: 3857) using geometryEngine.project
-    const webMercatorPoint = geometryEngine.project(point, { wkid: 3857 }) as Point;
+    // Try geometryEngine.project or projectGeometry
+    let webMercatorPoint: Point;
+    try {
+      // Attempt project (standard method)
+      webMercatorPoint = geometryEngine.project(point, { wkid: 3857 }) as Point;
+      if (!webMercatorPoint) {
+        throw new Error('Projection failed with project');
+      }
+    } catch (projError) {
+      console.warn('geometryEngine.project failed, trying projectGeometry:', projError);
+      // Fallback to projectGeometry (if available in newer versions)
+      if (geometryEngine.projectGeometry) {
+        webMercatorPoint = geometryEngine.projectGeometry(point, { wkid: 3857 }) as Point;
+      } else {
+        setState({ ...state, errorMessage: 'Failed to project point to Web Mercator. Check @arcgis/core version or geometryEngine.', isLoading: false });
+        return;
+      }
+    }
 
     if (!webMercatorPoint) {
       setState({ ...state, errorMessage: 'Failed to project point to Web Mercator.', isLoading: false });
