@@ -21,6 +21,9 @@ interface IState {
   bufferResults: any[];
 }
 
+// Convert miles to meters (1 mile = 1609.34 meters)
+const MILES_TO_METERS = 1609.34;
+
 const Widget = (props: AllWidgetProps<IConfig>) => {
   const [state, setState] = React.useState<IState>({
     jimuMapView: null,
@@ -67,8 +70,11 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
+    // Project the point to Web Mercator (wkid: 3857) for linear units
+    const webMercatorPoint = point.clone().project({ wkid: 3857 });
+
     const buffers = bufferDistances.map((distance) =>
-      geometryEngine.buffer(point, distance, 'miles')
+      geometryEngine.buffer(webMercatorPoint, distance * MILES_TO_METERS, 'meters')
     );
 
     const query = censusLayer.createQuery();
