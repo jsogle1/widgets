@@ -4,7 +4,7 @@
   "type": "widget",
   "version": "1.0.0",
   "exbVersion": "1.15.0",
-  "author": "EPA",
+  "author": "Your Name or Organization",
   "description": "A custom widget for buffer-based dasymetric population analysis, including map integration and CSV export.",
   "copyright": "",
   "license": "http://www.apache.org/licenses/LICENSE-2.0",
