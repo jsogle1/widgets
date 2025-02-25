@@ -1,11 +1,11 @@
-Uncaught (in promise) TypeError: point.clone(...).project is not a function
-    at widget.tsx:74:44
+Uncaught (in promise) TypeError: _arcgis_core_geometry_geometryEngine__WEBPACK_IMPORTED_MODULE_2__.project is not a function
+    at widget.tsx:74:30
     at Generator.next (<anonymous>)
     at set-public-path.ts:7:52
     at new Promise (<anonymous>)
     at __awaiter (set-public-path.ts:7:52)
     at processPoint (widget.tsx:54:47)
-    at widget.tsx:144:11
+    at widget.tsx:149:11
     at Generator.next (<anonymous>)
     at set-public-path.ts:7:52
-    at new Promise (<anonymous>)Understand this errorAI
+    at new Promise (<anonymous>)
