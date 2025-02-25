@@ -41,5 +41,5 @@ const Widget = (props: AllWidgetProps<{}>) => {
     </div>
   );
 };
-
+//this.props.useMapWidgetIds && this.props.useMapWidgetIds.length > 0)
 export default Widget;
