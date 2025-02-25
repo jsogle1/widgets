@@ -70,8 +70,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // Project the point to Web Mercator (wkid: 3857) for linear units
-    const webMercatorPoint = point.clone().project({ wkid: 3857 });
+    // Project the point to Web Mercator (wkid: 3857) using geometryEngine.project
+    const webMercatorPoint = geometryEngine.project(point, { wkid: 3857 }) as Point;
+
+    if (!webMercatorPoint) {
+      setState({ ...state, errorMessage: 'Failed to project point to Web Mercator.', isLoading: false });
+      return;
+    }
 
     const buffers = bufferDistances.map((distance) =>
       geometryEngine.buffer(webMercatorPoint, distance * MILES_TO_METERS, 'meters')
