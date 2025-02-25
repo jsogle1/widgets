@@ -4,7 +4,7 @@ import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
 import { TextInput, Button, Alert } from 'jimu-ui';
-import * as csvjson from 'csvjson';
+import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
 
 interface IConfig {
@@ -103,8 +103,8 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       setState({ ...state, isLoading: false, errorMessage: null, bufferResults });
       console.log('Buffer analysis completed with:', bufferResults);
 
-      // Export to CSV with all calculated fields
-      const csvData = csvjson.toCSV(bufferResults, { headers: 'key' });
+      // Export to CSV with PapaParse
+      const csvData = Papa.unparse(bufferResults, { header: true });
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, `${state.siteName}_buffer_results.csv`);
     } catch (error) {
