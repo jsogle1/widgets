@@ -1,14 +1,19 @@
+Error during service worker registration: SecurityError: Failed to register a ServiceWorker for scope ('https://localhost:3001/') with script ('https://localhost:3001/service-worker.js'): An SSL certificate error occurred when fetching the script.
+Map view received: Valid
+widget.tsx:49 Map view loaded, spatial reference: 102100
+widget.tsx:100 Projection engine loaded successfully
+widget.tsx:107 Point projected to map spatial reference: r
+widget.tsx:126 Buffers created: Array(6)
 init.js:130 [esri.core.accessorSupport.ensureTypes] Accessor#set Invalid property value, value needs to be one of 'esri.geometry.Extent', 'esri.geometry.Multipoint', 'esri.geometry.Point', 'esri.geometry.Polyline', 'esri.geometry.Polygon', or a plain object that can autocast (having .type = 'extent', 'multipoint', 'point', 'polyline', 'polygon')
-e	@	init.js:130
-
-widget.tsx:175 Buffer processing error: TypeError: Cannot read properties of undefined (reading 'wkid')
+e @ init.js:130Understand this errorAI
+widget.tsx:187 Buffer processing error: TypeError: Cannot read properties of undefined (reading 'wkid')
     at N (geometryEngineBase.js:6:28)
-    at g.Fa [as contains] (geometryEngineBase.js:7:433)
-    at c.contains (geometryEngine.js:5:317)
-    at widget.tsx:144:11
+    at g.Ja [as intersects] (geometryEngineBase.js:9:4)
+    at c.intersects (geometryEngine.js:9:278)
+    at widget.tsx:156:11
     at Array.filter (<anonymous>)
-    at widget.tsx:143:49
+    at widget.tsx:155:49
     at Array.map (<anonymous>)
     at Array.<anonymous> (index.js:2:77998)
-    at widget.tsx:142:45
+    at widget.tsx:154:45
     at Generator.next (<anonymous>)
