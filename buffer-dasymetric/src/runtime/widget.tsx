@@ -4,7 +4,7 @@ import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
 import SpatialReference from '@arcgis/core/geometry/SpatialReference';
-import { project as projectOperator } from '@arcgis/core/geometry/operators/projectOperator';
+import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
