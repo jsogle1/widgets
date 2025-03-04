@@ -1,3 +1,35 @@
-Type '(Polygon | Polygon[])[]' is not assignable to type 'Geometry[]'.
-  Type 'Polygon | Polygon[]' is not assignable to type 'Geometry'.
-    Type 'Polygon[]' is missing the following properties from type 'Geometry': cache, extent, hasM, hasZ, and 16 more.
+UI: Error processing data: Cannot read properties of undefined (reading 'wkid')
+
+Console: .js:130 [esri.core.accessorSupport.ensureTypes] Accessor#set Invalid property value, value needs to be one of 'esri.geometry.Extent', 'esri.geometry.Multipoint', 'esri.geometry.Point', 'esri.geometry.Polyline', 'esri.geometry.Polygon', or a plain object that can autocast (having .type = 'extent', 'multipoint', 'point', 'polyline', 'polygon')
+
+VSCODE
+projectedPoint = projection.project(point, mapSR) as Point;->The signature '(geometry: GeometryUnion | GeometryUnion[], outSpatialReference: SpatialReferenceProperties, geographicTransformation?: supportGeographicTransformation): GeometryUnion | GeometryUnion[]' of 'projection.project' is deprecated.ts(6387)
+interfaces.d.ts(11285, 8): The declaration was marked as deprecated here.
+const project: (geometry: __esri.GeometryUnion | __esri.GeometryUnion[], outSpatialReference: __esri.SpatialReferenceProperties | nullish, geographicTransformation?: __esri.supportGeographicTransformation | null) => __esri.GeometryUnion | __esri.GeometryUnion[]
+Projects a geometry or an array of geometries to the specified output spatial reference.
+
+@param geometry — The geometry or geometries to project.
+
+@param outSpatialReference — The spatial reference to which you are converting the geometries' coordinates.
+
+@param geographicTransformation — The geographic transformation used to transform the geometries. Specify this parameter to project a geometry when the default transformation is not appropriate for your requirements.
+
+@deprecated
+since version 4.32. Use the :esri/geometry/operators/projectOperator instead.
+
+Read more...
+
+No quick fixes available
+
+
+}).flat().filter((buffer): buffer is __esri.Geometry => !!buffer);->A type predicate's type must be assignable to its parameter's type.
+  Type 'Geometry' is missing the following properties from type 'Polygon': centroid, curveRings, isSelfIntersecting, rings, and 8 more.ts(2677)
+class __esri.Geometry
+interface __esri.Geometry
+No quick fixes available
+
+buffers[index] && feature.geometry && geometryEngine.intersects(buffers[index], feature.geometry)
+Argument of type 'Geometry' is not assignable to parameter of type 'GeometryUnion'.
+  Type 'Geometry' is missing the following properties from type 'Mesh': loadError, loadStatus, loadWarnings, origin, and 18 more.ts(2345)
+let buffers: __esri.Geometry[]
+No quick fixes available
