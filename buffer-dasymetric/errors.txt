@@ -1,7 +1,14 @@
-C:\Users\jogle\arcgis-experience-builder-1.15\ArcGISExperienceBuilder\client>npm list @arcgis/core
-exb-client@1.15.0 C:\Users\jogle\arcgis-experience-builder-1.15\ArcGISExperienceBuilder\client
-+-- @arcgis/core@4.30.0
-`-- @arcgis/map-components-react@4.30.0-next.37
-  +-- @arcgis/core@4.30.0 deduped
-  `-- @arcgis/map-components@4.30.0-next.37
-    `-- @arcgis/core@4.30.0 deduped
+init.js:130 [esri.core.accessorSupport.ensureTypes] Accessor#set Invalid property value, value needs to be one of 'esri.geometry.Extent', 'esri.geometry.Multipoint', 'esri.geometry.Point', 'esri.geometry.Polyline', 'esri.geometry.Polygon', or a plain object that can autocast (having .type = 'extent', 'multipoint', 'point', 'polyline', 'polygon')
+e	@	init.js:130
+
+widget.tsx:175 Buffer processing error: TypeError: Cannot read properties of undefined (reading 'wkid')
+    at N (geometryEngineBase.js:6:28)
+    at g.Fa [as contains] (geometryEngineBase.js:7:433)
+    at c.contains (geometryEngine.js:5:317)
+    at widget.tsx:144:11
+    at Array.filter (<anonymous>)
+    at widget.tsx:143:49
+    at Array.map (<anonymous>)
+    at Array.<anonymous> (index.js:2:77998)
+    at widget.tsx:142:45
+    at Generator.next (<anonymous>)
