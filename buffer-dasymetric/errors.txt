@@ -1,11 +1,7 @@
-Uncaught (in promise) TypeError: _arcgis_core_geometry_geometryEngine__WEBPACK_IMPORTED_MODULE_2__.project is not a function
-    at widget.tsx:74:30
-    at Generator.next (<anonymous>)
-    at set-public-path.ts:7:52
-    at new Promise (<anonymous>)
-    at __awaiter (set-public-path.ts:7:52)
-    at processPoint (widget.tsx:54:47)
-    at widget.tsx:149:11
-    at Generator.next (<anonymous>)
-    at set-public-path.ts:7:52
-    at new Promise (<anonymous>)
+C:\Users\jogle\arcgis-experience-builder-1.15\ArcGISExperienceBuilder\client>npm list @arcgis/core
+exb-client@1.15.0 C:\Users\jogle\arcgis-experience-builder-1.15\ArcGISExperienceBuilder\client
++-- @arcgis/core@4.30.0
+`-- @arcgis/map-components-react@4.30.0-next.37
+  +-- @arcgis/core@4.30.0 deduped
+  `-- @arcgis/map-components@4.30.0-next.37
+    `-- @arcgis/core@4.30.0 deduped
