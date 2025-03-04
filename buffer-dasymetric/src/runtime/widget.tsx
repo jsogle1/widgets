@@ -3,7 +3,8 @@ import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
-import projection from '@arcgis/core/geometry/projection';
+import SpatialReference from '@arcgis/core/geometry/SpatialReference';
+import { project as projectOperator } from '@arcgis/core/geometry/operators/projectOperator';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
@@ -71,13 +72,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    let buffers: __esri.Geometry[];
+    let buffers: __esri.Polygon[];
     try {
-      await projection.load();
       const mapSR = state.jimuMapView.view.spatialReference;
       let projectedPoint: Point;
+
       try {
-        projectedPoint = projection.project(point, mapSR) as Point;
+        projectedPoint = projectOperator(point, mapSR) as Point;
       } catch (projError) {
         setState({
           ...state,
@@ -93,8 +94,8 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
       buffers = bufferDistances.map((distance) => {
         const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, 'meters');
-        return buffer ? (Array.isArray(buffer) ? buffer : [buffer]) : null;
-      }).flat().filter((buffer): buffer is __esri.Geometry => !!buffer);
+        return buffer ? (Array.isArray(buffer) ? buffer[0] : buffer) : null;
+      }).filter((buffer): buffer is __esri.Polygon => !!buffer);
 
       if (buffers.length === 0) {
         throw new Error('No valid buffers were created.');
@@ -125,7 +126,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
       const bufferResults = bufferDistances.map((distance, index) => {
         const clippedFeatures = result.features.filter((feature) => 
-          buffers[index] && feature.geometry && geometryEngine.intersects(buffers[index], feature.geometry)
+          buffers[index] && feature.geometry && geometryEngine.intersects(buffers[index], feature.geometry as __esri.GeometryUnion)
         );
 
         const totalPop = clippedFeatures.reduce(
@@ -162,34 +163,6 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
   };
 
-  const handleCoordinateSubmit = async () => {
-    const { latitude, longitude } = state;
-
-    if (!latitude.trim() || !longitude.trim()) {
-      setState({ ...state, errorMessage: 'Please enter both latitude and longitude.' });
-      return;
-    }
-
-    const lat = parseFloat(latitude);
-    const lon = parseFloat(longitude);
-
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      setState({
-        ...state,
-        errorMessage: 'Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180.',
-      });
-      return;
-    }
-
-    const point = new Point({
-      latitude: lat,
-      longitude: lon,
-      spatialReference: { wkid: 4326 },
-    });
-
-    await processPoint(point);
-  };
-
   return (
     <div className="widget-dasymetric jimu-widget" style={{ padding: '10px' }}>
       <h1>Buffer Dasymetric Widget</h1>
@@ -218,21 +191,10 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
           onChange={(e) => setState({ ...state, siteName: e.target.value })}
           style={{ width: '150px' }}
         />
-        <Button onClick={handleCoordinateSubmit} disabled={state.isLoading}>
+        <Button onClick={() => processPoint(new Point({ latitude: parseFloat(state.latitude), longitude: parseFloat(state.longitude), spatialReference: new SpatialReference({ wkid: 4326 }) }))} disabled={state.isLoading}>
           {state.isLoading ? 'Processing...' : 'Buffer Coordinates'}
         </Button>
       </div>
-
-      {state.errorMessage && (
-        <Alert
-          type="error"
-          text={state.errorMessage}
-          withIcon
-          closable
-          onClose={() => setState({ ...state, errorMessage: null })}
-          style={{ marginTop: '10px' }}
-        />
-      )}
     </div>
   );
 };
