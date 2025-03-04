@@ -3,7 +3,7 @@ import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
-import projection from '@arcgis/core/geometry/projection'; // Import projection module
+import projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
@@ -79,25 +79,37 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
+    // Check if required fields exist in the census layer
+    const requiredFields = ['TOTALPOP', 'ACRES'];
+    const layerFields = censusLayer.fields.map((field) => field.name);
+    for (const field of requiredFields) {
+      if (!layerFields.includes(field)) {
+        setState({
+          ...state,
+          errorMessage: `Required field '${field}' not found in the census layer.`,
+          isLoading: false,
+        });
+        return;
+      }
+    }
+
     let buffers: __esri.Geometry[];
     try {
       // Load the projection engine
       await projection.load();
       console.log('Projection engine loaded successfully');
 
-      // Project point to Web Mercator (WKID 3857)
+      // Project point to the map's spatial reference dynamically
+      const mapSR = state.jimuMapView.view.spatialReference;
       let projectedPoint: Point;
       try {
-        projectedPoint = projection.project(
-          point,
-          { wkid: 3857 } // Target Web Mercator spatial reference
-        ) as Point;
-        console.log('Point projected to WKID 3857:', projectedPoint);
+        projectedPoint = projection.project(point, mapSR) as Point;
+        console.log('Point projected to map spatial reference:', projectedPoint);
       } catch (projError) {
         console.error('Projection failed:', projError);
         setState({
           ...state,
-          errorMessage: 'Failed to project point to Web Mercator. Check @arcgis/core version.',
+          errorMessage: 'Failed to project point to map spatial reference.',
           isLoading: false,
         });
         return;
@@ -107,7 +119,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         throw new Error('Projection returned null');
       }
 
-      // Create buffers in meters
+      // Create buffers in meters (assuming map SR uses meters)
       buffers = bufferDistances.map((distance) =>
         geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, 'meters')
       );
@@ -138,10 +150,10 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         return;
       }
 
-      // Calculate buffer results
+      // Calculate buffer results using intersects instead of contains
       const bufferResults = bufferDistances.map((distance, index) => {
         const clippedFeatures = result.features.filter((feature) =>
-          geometryEngine.contains(buffers[index], feature.geometry)
+          geometryEngine.intersects(buffers[index], feature.geometry)
         );
 
         const totalPop = clippedFeatures.reduce(
