@@ -8,10 +8,12 @@ import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
 
+// Configuration interface for buffer distances
 interface IConfig {
   bufferDistances: number[];
 }
 
+// State interface for the widget
 interface IState {
   jimuMapView: JimuMapView | null;
   latitude: string;
@@ -22,10 +24,11 @@ interface IState {
   bufferResults: any[];
 }
 
-// Convert miles to meters (1 mile = 1609.34 meters)
+// Conversion constant: 1 mile = 1609.34 meters
 const MILES_TO_METERS = 1609.34;
 
 const Widget = (props: AllWidgetProps<IConfig>) => {
+  // Initialize state
   const [state, setState] = React.useState<IState>({
     jimuMapView: null,
     latitude: '',
@@ -36,7 +39,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     bufferResults: [],
   });
 
-  // Handle map view initialization
+  // Handler for when the map view is initialized or changed
   const activeViewChangeHandler = (jmv: JimuMapView) => {
     console.log('Map view received:', jmv ? 'Valid' : 'Null');
     if (!jmv) {
@@ -53,7 +56,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     });
   };
 
-  // Process the point and perform buffering
+  // Process the input point and perform buffering
   const processPoint = async (point: Point) => {
     if (!state.jimuMapView) {
       setState({ ...state, errorMessage: 'Map view not loaded. Add a Map widget.' });
@@ -79,27 +82,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // Check if required fields exist in the census layer
-    const requiredFields = ['TOTALPOP', 'ACRES'];
-    const layerFields = censusLayer.fields.map((field) => field.name);
-    for (const field of requiredFields) {
-      if (!layerFields.includes(field)) {
-        setState({
-          ...state,
-          errorMessage: `Required field '${field}' not found in the census layer.`,
-          isLoading: false,
-        });
-        return;
-      }
-    }
-
     let buffers: __esri.Geometry[];
     try {
       // Load the projection engine
       await projection.load();
       console.log('Projection engine loaded successfully');
 
-      // Project point to the map's spatial reference dynamically
+      // Project the point to the map's spatial reference
       const mapSR = state.jimuMapView.view.spatialReference;
       let projectedPoint: Point;
       try {
@@ -115,14 +104,23 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         return;
       }
 
-      if (!projectedPoint) {
-        throw new Error('Projection returned null');
+      // Validate the projected point
+      if (!projectedPoint || !projectedPoint.spatialReference) {
+        throw new Error('Projected point is invalid or missing spatial reference.');
       }
 
-      // Create buffers in meters (assuming map SR uses meters)
-      buffers = bufferDistances.map((distance) =>
-        geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, 'meters')
-      );
+      // Create buffers in meters
+      buffers = bufferDistances.map((distance) => {
+        const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, 'meters');
+        if (!buffer) {
+          console.error('Failed to create buffer for distance:', distance);
+        }
+        return buffer;
+      }).filter((buffer) => buffer && buffer.spatialReference); // Filter out invalid buffers
+
+      if (buffers.length === 0) {
+        throw new Error('No valid buffers were created.');
+      }
       console.log('Buffers created:', buffers);
     } catch (error) {
       console.error('Error in projection or buffering:', error);
@@ -134,7 +132,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // Query census layer with the largest buffer
+    // Query the census layer with the largest buffer
     const query = censusLayer.createQuery();
     query.geometry = buffers[buffers.length - 1];
     query.outFields = ['TOTALPOP', 'ACRES'];
@@ -150,11 +148,19 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         return;
       }
 
-      // Calculate buffer results using intersects instead of contains
+      // Calculate buffer results using intersection
       const bufferResults = bufferDistances.map((distance, index) => {
-        const clippedFeatures = result.features.filter((feature) =>
-          geometryEngine.intersects(buffers[index], feature.geometry)
-        );
+        const clippedFeatures = result.features.filter((feature) => {
+          if (!feature.geometry || !feature.geometry.spatialReference) {
+            console.warn('Skipping feature with invalid geometry:', feature);
+            return false;
+          }
+          if (!buffers[index] || !buffers[index].spatialReference) {
+            console.warn('Skipping invalid buffer at index:', index);
+            return false;
+          }
+          return geometryEngine.intersects(buffers[index], feature.geometry);
+        });
 
         const totalPop = clippedFeatures.reduce(
           (sum, feature) => sum + (feature.attributes?.TOTALPOP || 0),
@@ -179,7 +185,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       setState({ ...state, isLoading: false, errorMessage: null, bufferResults });
       console.log('Buffer analysis completed:', bufferResults);
 
-      // Export to CSV
+      // Export results to CSV
       const csvData = Papa.unparse(bufferResults, { header: true });
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, `${state.siteName}_buffer_results.csv`);
@@ -193,7 +199,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
   };
 
-  // Handle coordinate submission
+  // Handle coordinate submission from the UI
   const handleCoordinateSubmit = async () => {
     const { latitude, longitude } = state;
 
@@ -227,7 +233,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     <div className="widget-dasymetric jimu-widget" style={{ padding: '10px' }}>
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent
-        useMapWidgetId="widget_6" // Hardcoded Map widget ID
+        useMapWidgetId="widget_6" // Hardcoded Map widget ID; adjust as needed
         onActiveViewChange={activeViewChangeHandler}
       />
 
