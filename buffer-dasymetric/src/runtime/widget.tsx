@@ -3,6 +3,7 @@ import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
+import projection from '@arcgis/core/geometry/projection'; // Import projection module
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
@@ -35,111 +36,152 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     bufferResults: [],
   });
 
+  // Handle map view initialization
   const activeViewChangeHandler = (jmv: JimuMapView) => {
     console.log('Map view received:', jmv ? 'Valid' : 'Null');
     if (!jmv) {
-      console.error('No map view available. Check hardcoded Map widget ID (widget_6).');
+      console.error('No map view available. Check Map widget ID (widget_6).');
       setState({ ...state, errorMessage: 'No map view available. Check Map widget linkage.' });
       return;
     }
     setState({ ...state, jimuMapView: jmv });
     jmv.view.when(() => {
-      console.log('Map view fully loaded');
+      console.log('Map view loaded, spatial reference:', jmv.view.spatialReference.wkid);
     }).catch((err) => {
       console.error('Map view failed to load:', err);
       setState({ ...state, errorMessage: 'Failed to load map view: ' + err.message });
     });
   };
 
+  // Process the point and perform buffering
   const processPoint = async (point: Point) => {
     if (!state.jimuMapView) {
       setState({ ...state, errorMessage: 'Map view not loaded. Add a Map widget.' });
       return;
     }
     if (!state.siteName.trim()) {
-      setState({ ...state, errorMessage: 'Please enter a site name before processing.' });
+      setState({ ...state, errorMessage: 'Please enter a site name.' });
       return;
     }
 
     setState({ ...state, isLoading: true, errorMessage: null });
     const bufferDistances = props.config?.bufferDistances || [0.25, 0.5, 1, 2, 3, 4];
-    const censusLayer = state.jimuMapView.view.map.allLayers.find((layer) => layer.title === 'CensusBlocks2010') as FeatureLayer;
+    const censusLayer = state.jimuMapView.view.map.allLayers.find(
+      (layer) => layer.title === 'CensusBlocks2010'
+    ) as FeatureLayer;
 
     if (!censusLayer) {
-      setState({ ...state, errorMessage: 'Census layer (CensusBlocks2010) not found in the map. Check layer title or URL.', isLoading: false });
+      setState({
+        ...state,
+        errorMessage: 'Census layer (CensusBlocks2010) not found in the map.',
+        isLoading: false,
+      });
       return;
     }
 
-    // Try geometryEngine.project or projectGeometry
-    let webMercatorPoint: Point;
+    let buffers: __esri.Geometry[];
     try {
-      // Attempt project (standard method)
-      webMercatorPoint = geometryEngine.project(point, { wkid: 3857 }) as Point;
-      if (!webMercatorPoint) {
-        throw new Error('Projection failed with project');
-      }
-    } catch (projError) {
-      console.warn('geometryEngine.project failed, trying projectGeometry:', projError);
-      // Fallback to projectGeometry (if available in newer versions)
-      if (geometryEngine.projectGeometry) {
-        webMercatorPoint = geometryEngine.projectGeometry(point, { wkid: 3857 }) as Point;
-      } else {
-        setState({ ...state, errorMessage: 'Failed to project point to Web Mercator. Check @arcgis/core version or geometryEngine.', isLoading: false });
+      // Load the projection engine
+      await projection.load();
+      console.log('Projection engine loaded successfully');
+
+      // Project point to Web Mercator (WKID 3857)
+      let projectedPoint: Point;
+      try {
+        projectedPoint = projection.project(
+          point,
+          { wkid: 3857 } // Target Web Mercator spatial reference
+        ) as Point;
+        console.log('Point projected to WKID 3857:', projectedPoint);
+      } catch (projError) {
+        console.error('Projection failed:', projError);
+        setState({
+          ...state,
+          errorMessage: 'Failed to project point to Web Mercator. Check @arcgis/core version.',
+          isLoading: false,
+        });
         return;
       }
-    }
 
-    if (!webMercatorPoint) {
-      setState({ ...state, errorMessage: 'Failed to project point to Web Mercator.', isLoading: false });
+      if (!projectedPoint) {
+        throw new Error('Projection returned null');
+      }
+
+      // Create buffers in meters
+      buffers = bufferDistances.map((distance) =>
+        geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, 'meters')
+      );
+      console.log('Buffers created:', buffers);
+    } catch (error) {
+      console.error('Error in projection or buffering:', error);
+      setState({
+        ...state,
+        errorMessage: `Error processing data: ${error.message}`,
+        isLoading: false,
+      });
       return;
     }
 
-    const buffers = bufferDistances.map((distance) =>
-      geometryEngine.buffer(webMercatorPoint, distance * MILES_TO_METERS, 'meters')
-    );
-
+    // Query census layer with the largest buffer
     const query = censusLayer.createQuery();
-    query.geometry = buffers[buffers.length - 1]; // Use largest buffer for simplicity
-    query.outFields = ['TOTALPOP', 'ACRES']; // Request specific fields
+    query.geometry = buffers[buffers.length - 1];
+    query.outFields = ['TOTALPOP', 'ACRES'];
+
     try {
       const result = await censusLayer.queryFeatures(query);
       if (!result.features.length) {
-        setState({ ...state, errorMessage: 'No census features found within the largest buffer.', isLoading: false });
+        setState({
+          ...state,
+          errorMessage: 'No census features found within the largest buffer.',
+          isLoading: false,
+        });
         return;
       }
 
+      // Calculate buffer results
       const bufferResults = bufferDistances.map((distance, index) => {
-        const clippedFeatures = result.features.filter(feature =>
+        const clippedFeatures = result.features.filter((feature) =>
           geometryEngine.contains(buffers[index], feature.geometry)
         );
 
-        const totalPop = clippedFeatures.reduce((sum, feature) => sum + (feature.attributes?.TOTALPOP || 0), 0);
-        const totalAcres = clippedFeatures.reduce((sum, feature) => sum + (feature.attributes?.ACRES || 0), 0);
+        const totalPop = clippedFeatures.reduce(
+          (sum, feature) => sum + (feature.attributes?.TOTALPOP || 0),
+          0
+        );
+        const totalAcres = clippedFeatures.reduce(
+          (sum, feature) => sum + (feature.attributes?.ACRES || 0),
+          0
+        );
         const popDensity = totalPop > 0 && totalAcres > 0 ? totalPop / totalAcres : 0;
 
         return {
           Distance: distance,
           Features: clippedFeatures.length,
-          Population: totalPop, // Raw population
-          Clip_Pop: totalPop, // Adjusted population (same as raw for now, refine later)
-          Clip_Area: totalAcres, // Adjusted area
-          POP_DEN: popDensity, // Population density (people per acre)
+          Population: totalPop,
+          Clip_Pop: totalPop,
+          Clip_Area: totalAcres,
+          POP_DEN: popDensity,
         };
       });
 
       setState({ ...state, isLoading: false, errorMessage: null, bufferResults });
-      console.log('Buffer analysis completed with:', bufferResults);
+      console.log('Buffer analysis completed:', bufferResults);
 
-      // Export to CSV with PapaParse
+      // Export to CSV
       const csvData = Papa.unparse(bufferResults, { header: true });
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, `${state.siteName}_buffer_results.csv`);
     } catch (error) {
       console.error('Buffer processing error:', error);
-      setState({ ...state, errorMessage: `Error processing data: ${error.message}`, isLoading: false });
+      setState({
+        ...state,
+        errorMessage: `Error processing data: ${error.message}`,
+        isLoading: false,
+      });
     }
   };
 
+  // Handle coordinate submission
   const handleCoordinateSubmit = async () => {
     const { latitude, longitude } = state;
 
@@ -152,24 +194,28 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     const lon = parseFloat(longitude);
 
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      setState({ ...state, errorMessage: 'Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180.' });
+      setState({
+        ...state,
+        errorMessage: 'Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180.',
+      });
       return;
     }
 
     const point = new Point({
       latitude: lat,
       longitude: lon,
-      spatialReference: { wkid: 4326 },
+      spatialReference: { wkid: 4326 }, // WGS84
     });
 
     await processPoint(point);
   };
 
+  // Render the widget UI
   return (
     <div className="widget-dasymetric jimu-widget" style={{ padding: '10px' }}>
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent
-        useMapWidgetId="widget_6"  // Hardcoded Map widget ID
+        useMapWidgetId="widget_6" // Hardcoded Map widget ID
         onActiveViewChange={activeViewChangeHandler}
       />
 
@@ -217,8 +263,8 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
           <ul>
             {state.bufferResults.map((result, index) => (
               <li key={index}>
-                {result.Distance} miles: {result.Features} features, Population: {result.Population}, 
-                Adjusted Population: {result.Clip_Pop}, Adjusted Area: {result.Clip_Area} acres, 
+                {result.Distance} miles: {result.Features} features, Population: {result.Population},
+                Adjusted Population: {result.Clip_Pop}, Adjusted Area: {result.Clip_Area} acres,
                 Density: {result.POP_DEN.toFixed(2)} people/acre
               </li>
             ))}
