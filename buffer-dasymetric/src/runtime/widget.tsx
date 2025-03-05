@@ -112,29 +112,42 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         return;
       }
 
-      console.log("📏 Creating Buffers...");
-      buffers = bufferDistances.map((distance) => {
-        console.log(`🔄 Buffering at ${distance} miles...`);
-        const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
-        console.log("🔍 Buffer Output:", buffer);
+      console.log("🌍 Map Spatial Reference Before Buffering:", projectedPoint.spatialReference);
 
-        if (!buffer) {
-          console.error(`❌ Buffer failed at distance: ${distance}`);
-          return null;
-        }
-        if (buffer.type !== "polygon") {
-          console.error(`❌ Buffer rejected: Expected 'polygon', got '${buffer.type}'`);
-          return null;
-        }
-        return buffer as Polygon;
+      // ✅ Buffering Fix: Ensure valid buffers are created
+      buffers = bufferDistances.map((distance) => {
+          console.log(`🔄 Attempting to buffer at ${distance} miles...`);
+
+          try {
+              const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
+
+              console.log("🔍 Raw Buffer Output:", buffer);
+
+              if (!buffer) {
+                  console.error(`❌ Buffer creation failed at ${distance} miles - buffer returned undefined.`);
+                  return null;
+              }
+
+              // Fix: If buffer is an array, take the first item
+              const validBuffer = Array.isArray(buffer) ? buffer[0] : buffer;
+
+              if (!validBuffer || validBuffer.type !== "polygon") {
+                  console.error(`❌ Buffer rejected: Expected 'polygon', got '${validBuffer?.type}'`);
+                  return null;
+              }
+
+              console.log("✅ Valid Buffer Created:", validBuffer);
+              return validBuffer as Polygon;
+          } catch (error) {
+              console.error(`❌ Exception during buffering at ${distance} miles:`, error);
+              return null;
+          }
       }).filter((buffer): buffer is Polygon => !!buffer);
 
-      console.log("✅ Final Buffers List:", buffers);
-
       if (buffers.length === 0) {
-        console.error("❌ No valid buffers were created.");
-        setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
-        return;
+          console.error("❌ No valid buffers were created.");
+          setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
+          return;
       }
     } catch (error) {
       console.error("❌ Buffering Error:", error);
@@ -143,18 +156,10 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
 
     console.log("🔄 Querying Census Layer...");
-
-// ✅ FIX: Ensuring `query.geometry` is valid
     const lastBuffer = buffers.length > 0 ? buffers[buffers.length - 1] : null;
 
-    if (!lastBuffer) {
-        console.error("❌ Error: No valid buffer found for query.");
-        setState({ ...state, errorMessage: "Error: No valid buffer found for query.", isLoading: false });
-        return;
-    }
-
-    if (lastBuffer.type !== "polygon") {
-        console.error(`❌ Invalid buffer type for query. Expected 'polygon', got '${lastBuffer.type}'`);
+    if (!lastBuffer || lastBuffer.type !== "polygon") {
+        console.error(`❌ Invalid buffer type for query. Expected 'polygon', got '${lastBuffer?.type}'`);
         setState({ ...state, errorMessage: `Error: Invalid buffer type for query.`, isLoading: false });
         return;
     }
@@ -166,22 +171,6 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     console.log("✅ Query Geometry Set:", query.geometry);
 
     query.outFields = ["TOTALPOP", "ACRES"];
-
-    try {
-      const result = await censusLayer.queryFeatures(query);
-      console.log("✅ Query Result:", result);
-
-      if (!result.features.length) {
-        setState({ ...state, errorMessage: "No census features found within the largest buffer.", isLoading: false });
-        return;
-      }
-
-      setState({ ...state, isLoading: false, errorMessage: null });
-
-    } catch (error) {
-      console.error("❌ Query Processing Error:", error);
-      setState({ ...state, errorMessage: `Error processing data: ${error.message}`, isLoading: false });
-    }
   };
 
   return (
@@ -202,3 +191,4 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 };
 
 export default Widget;
+
