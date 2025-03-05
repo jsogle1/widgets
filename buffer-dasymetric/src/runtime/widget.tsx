@@ -114,40 +114,37 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
       console.log("🌍 Map Spatial Reference Before Buffering:", projectedPoint.spatialReference);
 
-      // ✅ Buffering Fix: Ensure valid buffers are created
       buffers = bufferDistances.map((distance) => {
-          console.log(`🔄 Attempting to buffer at ${distance} miles...`);
+        console.log(`🔄 Attempting to buffer at ${distance} miles...`);
+        try {
+          const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
 
-          try {
-              const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
+          console.log("🔍 Raw Buffer Output:", buffer);
 
-              console.log("🔍 Raw Buffer Output:", buffer);
-
-              if (!buffer) {
-                  console.error(`❌ Buffer creation failed at ${distance} miles - buffer returned undefined.`);
-                  return null;
-              }
-
-              // Fix: If buffer is an array, take the first item
-              const validBuffer = Array.isArray(buffer) ? buffer[0] : buffer;
-
-              if (!validBuffer || validBuffer.type !== "polygon") {
-                  console.error(`❌ Buffer rejected: Expected 'polygon', got '${validBuffer?.type}'`);
-                  return null;
-              }
-
-              console.log("✅ Valid Buffer Created:", validBuffer);
-              return validBuffer as Polygon;
-          } catch (error) {
-              console.error(`❌ Exception during buffering at ${distance} miles:`, error);
-              return null;
+          if (!buffer) {
+            console.error(`❌ Buffer creation failed at ${distance} miles - buffer returned undefined.`);
+            return null;
           }
+
+          const validBuffer = Array.isArray(buffer) ? buffer[0] : buffer;
+
+          if (!validBuffer || validBuffer.type !== "polygon") {
+            console.error(`❌ Buffer rejected: Expected 'polygon', got '${validBuffer?.type}'`);
+            return null;
+          }
+
+          console.log("✅ Valid Buffer Created:", validBuffer);
+          return validBuffer as Polygon;
+        } catch (error) {
+          console.error(`❌ Exception during buffering at ${distance} miles:`, error);
+          return null;
+        }
       }).filter((buffer): buffer is Polygon => !!buffer);
 
       if (buffers.length === 0) {
-          console.error("❌ No valid buffers were created.");
-          setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
-          return;
+        console.error("❌ No valid buffers were created.");
+        setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
+        return;
       }
     } catch (error) {
       console.error("❌ Buffering Error:", error);
@@ -158,10 +155,25 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     console.log("🔄 Querying Census Layer...");
     const lastBuffer = buffers.length > 0 ? buffers[buffers.length - 1] : null;
 
-    if (!lastBuffer || lastBuffer.type !== "polygon") {
-        console.error(`❌ Invalid buffer type for query. Expected 'polygon', got '${lastBuffer?.type}'`);
-        setState({ ...state, errorMessage: `Error: Invalid buffer type for query.`, isLoading: false });
-        return;
+    if (!lastBuffer) {
+      console.error("❌ Error: No valid buffer found for query.");
+      setState({ ...state, errorMessage: "Error: No valid buffer found for query.", isLoading: false });
+      return;
+    }
+
+    // Ensure spatial reference exists
+    if (!lastBuffer.spatialReference || !lastBuffer.spatialReference.wkid) {
+      console.warn("⚠️ Warning: Buffer is missing spatial reference. Assigning map's SR.");
+      lastBuffer.spatialReference = state.jimuMapView?.view.spatialReference;
+    }
+
+    console.log("✅ Final Buffer Type:", lastBuffer?.type);
+    console.log("🌍 Final Buffer Spatial Reference:", lastBuffer.spatialReference);
+
+    if (lastBuffer.type !== "polygon") {
+      console.error(`❌ Invalid buffer type for query. Expected 'polygon', got '${lastBuffer.type}'`);
+      setState({ ...state, errorMessage: `Error: Invalid buffer type for query.`, isLoading: false });
+      return;
     }
 
     console.log("✅ Using buffer for query:", lastBuffer);
@@ -169,8 +181,6 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     const query = censusLayer.createQuery();
     query.geometry = lastBuffer as Polygon;
     console.log("✅ Query Geometry Set:", query.geometry);
-
-    query.outFields = ["TOTALPOP", "ACRES"];
   };
 
   return (
@@ -191,4 +201,3 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 };
 
 export default Widget;
-
