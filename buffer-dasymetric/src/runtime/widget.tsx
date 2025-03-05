@@ -102,15 +102,15 @@ const Widget = (props: AllWidgetProps<any>) => {
       return;
     }
 
-    // 🚀 **Step 2: Add Buffers One-by-One (NO ARRAYS)**
+    // 🚀 **Step 2: Ensure Buffer Layer Exists**
     let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
     if (!bufferLayer) {
       bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
       state.jimuMapView.view.map.add(bufferLayer);
     }
-    bufferLayer.removeAll(); // Clear old graphics
+    bufferLayer.removeAll(); // Clear previous graphics
 
-    // Add the point first
+    // **Add Point to Map**
     const pointGraphic = new Graphic({
       geometry: projectedPoint,
       symbol: {
@@ -123,33 +123,33 @@ const Widget = (props: AllWidgetProps<any>) => {
     bufferLayer.add(pointGraphic);
     console.log("✅ Point Added to Map");
 
-    // **Directly Create & Add Each Buffer**
-    for (let i = 0; i < BUFFER_DISTANCES_METERS.length; i++) {
+    // **🚀 Create & Add Each Buffer IMMEDIATELY (No Arrays)**
+    BUFFER_DISTANCES_METERS.forEach((distance, index) => {
       try {
-        console.log(`🔄 Creating buffer at ${BUFFER_DISTANCES_MILES[i]} miles (${BUFFER_DISTANCES_METERS[i]} meters)...`);
-        const buffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[i], "meters");
+        console.log(`🔄 Creating buffer at ${BUFFER_DISTANCES_MILES[index]} miles (${distance} meters)...`);
+        const buffer = geometryEngine.buffer(projectedPoint, distance, "meters");
 
         if (!buffer || buffer.type !== "polygon") {
-          throw new Error(`❌ Buffer creation failed for ${BUFFER_DISTANCES_MILES[i]} miles.`);
+          throw new Error(`❌ Buffer creation failed for ${BUFFER_DISTANCES_MILES[index]} miles.`);
         }
 
-        console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[i]} miles created.`);
+        console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[index]} miles created.`);
 
-        // **Immediately Add to Map**
+        // **Immediately Add Buffer to Map**
         const bufferGraphic = new Graphic({
           geometry: buffer,
           symbol: new SimpleFillSymbol({
-            color: BUFFER_COLORS[i], // Different color per buffer
+            color: BUFFER_COLORS[index], // Different color per buffer
             outline: { color: [0, 0, 0], width: 1 }
           }),
         });
 
         bufferLayer.add(bufferGraphic);
-        console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[i]} miles added to map.`);
+        console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[index]} miles added to map.`);
       } catch (error) {
-        console.error(`❌ Buffer Creation Failed for ${BUFFER_DISTANCES_MILES[i]} miles:`, error);
+        console.error(`❌ Buffer Creation Failed for ${BUFFER_DISTANCES_MILES[index]} miles:`, error);
       }
-    }
+    });
 
     console.log("✅ All Buffers & Point Added to Map");
     setState({ ...state, isLoading: false });
@@ -172,4 +172,3 @@ const Widget = (props: AllWidgetProps<any>) => {
 };
 
 export default Widget;
-
