@@ -15,16 +15,6 @@ import Query from '@arcgis/core/rest/support/Query';
 const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4, 5];
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map((miles) => miles * 1609.34);
 
-// Define Population Density Colors
-const POP_DEN_COLORS = [
-  { max: 0, color: [255, 255, 0, 0.7] }, // Yellow
-  { max: 100, color: [255, 165, 0, 0.7] }, // Orange
-  { max: 1000, color: [255, 0, 0, 0.7] }, // Red
-  { max: 2500, color: [255, 0, 255, 0.7] }, // Magenta
-  { max: 5000, color: [139, 0, 139, 0.7] }, // Dark Magenta
-  { max: Infinity, color: [0, 0, 0, 0.7] }, // Black
-];
-
 const Widget = (props: AllWidgetProps<any>) => {
   const [state, setState] = React.useState({
     jimuMapView: null as JimuMapView | null,
@@ -101,45 +91,58 @@ const Widget = (props: AllWidgetProps<any>) => {
       "¼-½ mile": 0, "½-1 mile": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0, "4-5 miles": 0
     };
 
-    BUFFER_DISTANCES_METERS.forEach(async (distance, index) => {
-      const buffer = geometryEngine.buffer(projectedPoint, distance, "meters");
+    for (let index = 1; index < BUFFER_DISTANCES_METERS.length; index++) {
+      const bufferOuter = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
+      const bufferInner = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index - 1], "meters");
+      if (!bufferOuter || !bufferInner) {
+        console.error(`❌ Buffer creation failed for ${BUFFER_DISTANCES_MILES[index]} miles.`);
+        continue;
+      }
+
+      const ringBuffer = geometryEngine.difference(bufferOuter, bufferInner);
+      if (!ringBuffer) {
+        console.warn(`⚠ Ring buffer invalid for ${BUFFER_DISTANCES_MILES[index]} miles.`);
+        continue;
+      }
+
       const query = censusLayer.createQuery();
-      query.geometry = buffer;
+      query.geometry = ringBuffer;
       query.spatialRelationship = "intersects";
       query.outFields = ["TOTALPOP", "ACRES"];
 
       const results = await censusLayer.queryFeatures(query);
+      console.log(`📊 Census Features Found in ${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} mile buffer:`, results.features.length);
+
       results.features.forEach(feature => {
-        const clippedFeature = geometryEngine.intersect(feature.geometry, buffer);
-        if (clippedFeature) {
-          const clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
-          const ratio = clippedAcres / feature.attributes.ACRES;
-          const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
-          const popDensity = adjPop / clippedAcres;
-
-          let color = [255, 255, 255]; // Default White
-          for (let i = 0; i < POP_DEN_COLORS.length; i++) {
-            if (popDensity <= POP_DEN_COLORS[i].max) {
-              color = POP_DEN_COLORS[i].color;
-              break;
-            }
-          }
-
-          const clippedGraphic = new Graphic({
-            geometry: clippedFeature,
-            attributes: { ACRES2: clippedAcres, ADJ_POP: adjPop, POP_DEN: popDensity },
-            symbol: new SimpleFillSymbol({ color: color, outline: { color: [0, 0, 0], width: 1 } }),
-            popupTemplate: {
-              title: `Census Block Data`,
-              content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}<br> POP_DEN: ${popDensity.toFixed(2)}`
-            }
-          });
-
-          bufferLayer.add(clippedGraphic);
-          if (index > 0) summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
+        const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
+        if (!clippedFeature) {
+          console.warn(`⚠ No clipped geometry for feature in buffer ${BUFFER_DISTANCES_MILES[index]} miles.`);
+          return;
         }
+
+        const clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
+        if (clippedAcres <= 0) {
+          console.warn(`⚠ Clipped area <= 0 in buffer ${BUFFER_DISTANCES_MILES[index]} miles.`);
+          return;
+        }
+
+        const ratio = clippedAcres / feature.attributes.ACRES;
+        const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
+        summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
+
+        const clippedGraphic = new Graphic({
+          geometry: clippedFeature,
+          attributes: { ACRES2: clippedAcres, ADJ_POP: adjPop },
+          symbol: new SimpleFillSymbol({ color: [255, 0, 0, 0.4], outline: { color: [0, 0, 0], width: 1 } }),
+          popupTemplate: {
+            title: `Census Block Data`,
+            content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}`
+          }
+        });
+
+        bufferLayer.add(clippedGraphic);
       });
-    });
+    }
 
     console.log(`📊 Dasymetric Summary for ${state.siteName}:`, summaryStats);
     setState({ ...state, isLoading: false });
@@ -158,4 +161,3 @@ const Widget = (props: AllWidgetProps<any>) => {
 };
 
 export default Widget;
-
