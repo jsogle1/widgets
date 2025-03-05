@@ -12,17 +12,17 @@ import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 import Query from '@arcgis/core/rest/support/Query';
 
 // Convert miles to meters (1 mile = 1609.34 meters)
-const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];
+const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4, 5];
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map((miles) => miles * 1609.34);
 
-// Colors for each buffer
-const BUFFER_COLORS = [
-  [255, 0, 0, 0.4],  // Red
-  [255, 165, 0, 0.4], // Orange
-  [255, 255, 0, 0.4], // Yellow
-  [0, 128, 0, 0.4],   // Green
-  [0, 0, 255, 0.4],   // Blue
-  [128, 0, 128, 0.4]  // Purple
+// Define Population Density Colors
+const POP_DEN_COLORS = [
+  { max: 0, color: [255, 255, 0, 0.7] }, // Yellow
+  { max: 100, color: [255, 165, 0, 0.7] }, // Orange
+  { max: 1000, color: [255, 0, 0, 0.7] }, // Red
+  { max: 2500, color: [255, 0, 255, 0.7] }, // Magenta
+  { max: 5000, color: [139, 0, 139, 0.7] }, // Dark Magenta
+  { max: Infinity, color: [0, 0, 0, 0.7] }, // Black
 ];
 
 const Widget = (props: AllWidgetProps<any>) => {
@@ -30,12 +30,12 @@ const Widget = (props: AllWidgetProps<any>) => {
     jimuMapView: null as JimuMapView | null,
     latitude: '',
     longitude: '',
+    siteName: '',
     errorMessage: null as string | null,
     isLoading: false,
   });
 
   const activeViewChangeHandler = (jmv: JimuMapView) => {
-    console.log("🌍 MapView Activated:", jmv);
     if (!jmv) {
       setState({ ...state, errorMessage: 'No map view available. Check Map widget linkage.' });
       return;
@@ -44,10 +44,10 @@ const Widget = (props: AllWidgetProps<any>) => {
   };
 
   const processPoint = async () => {
-    const { latitude, longitude } = state;
+    const { latitude, longitude, siteName } = state;
 
-    if (!latitude.trim() || !longitude.trim()) {
-      setState({ ...state, errorMessage: "Please enter both latitude and longitude." });
+    if (!latitude.trim() || !longitude.trim() || !siteName.trim()) {
+      setState({ ...state, errorMessage: "Enter Latitude, Longitude, and Site Name." });
       return;
     }
 
@@ -55,7 +55,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     const lon = parseFloat(longitude);
 
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      setState({ ...state, errorMessage: "Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180." });
+      setState({ ...state, errorMessage: "Invalid coordinates." });
       return;
     }
 
@@ -69,37 +69,18 @@ const Widget = (props: AllWidgetProps<any>) => {
   };
 
   const processBuffer = async (point: Point) => {
-    console.log("📍 Processing Point:", point);
-
     if (!state.jimuMapView) {
-      setState({ ...state, errorMessage: "Map view not loaded. Add a Map widget." });
+      setState({ ...state, errorMessage: "Map view not loaded." });
       return;
     }
 
     setState({ ...state, isLoading: true, errorMessage: null });
-
-    console.log("🔄 Loading Projection Engine...");
     await projection.load();
-    console.log("✅ Projection Engine Loaded.");
 
     const mapSR = state.jimuMapView.view.spatialReference;
-    console.log("🌍 Map Spatial Reference:", mapSR);
-
-    let projectedPoint: Point | null = null;
-    try {
-      console.log("🔄 Projecting Point...");
-      const projected = projection.project(point, mapSR);
-      console.log("🔍 Projected Result:", projected);
-
-      if (!projected || projected.type !== "point") {
-        throw new Error("Projection failed or returned invalid type.");
-      }
-
-      projectedPoint = projected as Point;
-      console.log("✅ Projected Point Confirmed:", projectedPoint);
-    } catch (projError) {
-      console.error("❌ Projection Failed:", projError);
-      setState({ ...state, errorMessage: "Failed to project point to map spatial reference.", isLoading: false });
+    const projectedPoint = projection.project(point, mapSR) as Point;
+    if (!projectedPoint) {
+      setState({ ...state, errorMessage: "Projection failed.", isLoading: false });
       return;
     }
 
@@ -108,74 +89,59 @@ const Widget = (props: AllWidgetProps<any>) => {
       bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
       state.jimuMapView.view.map.add(bufferLayer);
     }
-    bufferLayer.removeAll(); // Clear previous graphics
+    bufferLayer.removeAll();
 
     const censusLayer = state.jimuMapView.view.map.allLayers.find(layer => layer.title === "CensusBlocks2010") as FeatureLayer;
     if (!censusLayer) {
-      console.error("❌ Census layer not found!");
-      setState({ ...state, errorMessage: "Census layer (CensusBlocks2010) not found.", isLoading: false });
+      setState({ ...state, errorMessage: "Census layer not found.", isLoading: false });
       return;
     }
 
+    let summaryStats: { [key: string]: number } = {
+      "¼-½ mile": 0, "½-1 mile": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0, "4-5 miles": 0
+    };
+
     BUFFER_DISTANCES_METERS.forEach(async (distance, index) => {
-      try {
-        console.log(`🔄 Creating buffer at ${BUFFER_DISTANCES_MILES[index]} miles (${distance} meters)...`);
-        const buffer = geometryEngine.buffer(projectedPoint, distance, "meters");
+      const buffer = geometryEngine.buffer(projectedPoint, distance, "meters");
+      const query = censusLayer.createQuery();
+      query.geometry = buffer;
+      query.spatialRelationship = "intersects";
+      query.outFields = ["TOTALPOP", "ACRES"];
 
-        if (!buffer || buffer.type !== "polygon") {
-          throw new Error(`❌ Buffer creation failed for ${BUFFER_DISTANCES_MILES[index]} miles.`);
-        }
+      const results = await censusLayer.queryFeatures(query);
+      results.features.forEach(feature => {
+        const clippedFeature = geometryEngine.intersect(feature.geometry, buffer);
+        if (clippedFeature) {
+          const clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
+          const ratio = clippedAcres / feature.attributes.ACRES;
+          const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
+          const popDensity = adjPop / clippedAcres;
 
-        console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[index]} miles created.`);
-
-        const query = censusLayer.createQuery();
-        query.geometry = buffer;
-        query.spatialRelationship = "intersects";
-        query.outFields = ["TOTALPOP", "ACRES"];
-
-        const results = await censusLayer.queryFeatures(query);
-        console.log(`📊 Census Features Found in ${BUFFER_DISTANCES_MILES[index]} mile buffer:`, results.features.length);
-
-        results.features.forEach(feature => {
-          const clippedFeature = geometryEngine.intersect(feature.geometry, buffer);
-          if (clippedFeature) {
-            const originalAcres = feature.attributes.ACRES;
-            const clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
-            const ratio = clippedAcres / originalAcres;
-            const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
-
-            const clippedGraphic = new Graphic({
-              geometry: clippedFeature,
-              attributes: {
-                ACRES2: clippedAcres.toFixed(2),
-                PCT_ACRES: (ratio * 100).toFixed(2) + "%",
-                ADJ_POP: adjPop,
-              },
-              symbol: new SimpleFillSymbol({
-                color: BUFFER_COLORS[index],
-                outline: { color: [0, 0, 0], width: 1 }
-              }),
-              popupTemplate: {
-                title: `Census Block Data`,
-                content: `
-                  <b>Original Acres:</b> ${feature.attributes.ACRES} <br>
-                  <b>Clipped Acres (ACRES2):</b> ${clippedAcres.toFixed(2)} <br>
-                  <b>Percentage Retained:</b> ${(ratio * 100).toFixed(2)}% <br>
-                  <b>Adjusted Population (ADJ_POP):</b> ${adjPop}
-                `
-              }
-            });
-
-            bufferLayer.add(clippedGraphic);
+          let color = [255, 255, 255]; // Default White
+          for (let i = 0; i < POP_DEN_COLORS.length; i++) {
+            if (popDensity <= POP_DEN_COLORS[i].max) {
+              color = POP_DEN_COLORS[i].color;
+              break;
+            }
           }
-        });
 
-        console.log(`✅ Clipped Census Features Added for ${BUFFER_DISTANCES_MILES[index]} miles.`);
-      } catch (error) {
-        console.error(`❌ Error processing buffer ${BUFFER_DISTANCES_MILES[index]} miles:`, error);
-      }
+          const clippedGraphic = new Graphic({
+            geometry: clippedFeature,
+            attributes: { ACRES2: clippedAcres, ADJ_POP: adjPop, POP_DEN: popDensity },
+            symbol: new SimpleFillSymbol({ color: color, outline: { color: [0, 0, 0], width: 1 } }),
+            popupTemplate: {
+              title: `Census Block Data`,
+              content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}<br> POP_DEN: ${popDensity.toFixed(2)}`
+            }
+          });
+
+          bufferLayer.add(clippedGraphic);
+          if (index > 0) summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
+        }
+      });
     });
 
+    console.log(`📊 Dasymetric Summary for ${state.siteName}:`, summaryStats);
     setState({ ...state, isLoading: false });
   };
 
@@ -183,6 +149,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     <div>
       <h1>Dasymetric Population Tool</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+      <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
       <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
       <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
       <Button onClick={processPoint}>Process</Button>
