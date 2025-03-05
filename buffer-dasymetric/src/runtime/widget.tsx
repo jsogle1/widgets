@@ -103,7 +103,6 @@ const Widget = (props: AllWidgetProps<any>) => {
       return;
     }
 
-    // 🚀 **Step 2: Ensure Buffer Layer Exists**
     let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
     if (!bufferLayer) {
       bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
@@ -111,20 +110,6 @@ const Widget = (props: AllWidgetProps<any>) => {
     }
     bufferLayer.removeAll(); // Clear previous graphics
 
-    // **Add Point to Map**
-    const pointGraphic = new Graphic({
-      geometry: projectedPoint,
-      symbol: {
-        type: "simple-marker",
-        color: [0, 0, 255], // Blue point
-        size: "10px",
-        outline: { color: [0, 0, 0], width: 1 }
-      }
-    });
-    bufferLayer.add(pointGraphic);
-    console.log("✅ Point Added to Map");
-
-    // **Find Census Layer**
     const censusLayer = state.jimuMapView.view.map.allLayers.find(layer => layer.title === "CensusBlocks2010") as FeatureLayer;
     if (!censusLayer) {
       console.error("❌ Census layer not found!");
@@ -132,7 +117,6 @@ const Widget = (props: AllWidgetProps<any>) => {
       return;
     }
 
-    // **🚀 Clip Census Features by Each Buffer**
     BUFFER_DISTANCES_METERS.forEach(async (distance, index) => {
       try {
         console.log(`🔄 Creating buffer at ${BUFFER_DISTANCES_MILES[index]} miles (${distance} meters)...`);
@@ -144,11 +128,10 @@ const Widget = (props: AllWidgetProps<any>) => {
 
         console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[index]} miles created.`);
 
-        // **Query Census Layer for Intersecting Features**
         const query = censusLayer.createQuery();
         query.geometry = buffer;
         query.spatialRelationship = "intersects";
-        query.outFields = ["*"];
+        query.outFields = ["TOTALPOP", "ACRES"];
 
         const results = await censusLayer.queryFeatures(query);
         console.log(`📊 Census Features Found in ${BUFFER_DISTANCES_MILES[index]} mile buffer:`, results.features.length);
@@ -156,13 +139,24 @@ const Widget = (props: AllWidgetProps<any>) => {
         results.features.forEach(feature => {
           const clippedFeature = geometryEngine.intersect(feature.geometry, buffer);
           if (clippedFeature) {
+            const originalAcres = feature.attributes.ACRES;
+            const clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
+            const ratio = clippedAcres / originalAcres;
+            const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
+
             const clippedGraphic = new Graphic({
               geometry: clippedFeature,
+              attributes: {
+                ACRES2: clippedAcres.toFixed(2),
+                PCT_ACRES: (ratio * 100).toFixed(2) + "%",
+                ADJ_POP: adjPop,
+              },
               symbol: new SimpleFillSymbol({
-                color: BUFFER_COLORS[index], // Color based on buffer index
+                color: BUFFER_COLORS[index],
                 outline: { color: [0, 0, 0], width: 1 }
               }),
             });
+
             bufferLayer.add(clippedGraphic);
           }
         });
@@ -178,7 +172,7 @@ const Widget = (props: AllWidgetProps<any>) => {
 
   return (
     <div>
-      <h1>Buffer & Census Clipping Widget</h1>
+      <h1>Dasymetric Population Tool</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
       <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
       <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
@@ -188,4 +182,3 @@ const Widget = (props: AllWidgetProps<any>) => {
 };
 
 export default Widget;
-
