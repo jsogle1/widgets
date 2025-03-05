@@ -1,9 +1,9 @@
+
 import { React, type AllWidgetProps } from 'jimu-core'; 
 import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
-import Polygon from '@arcgis/core/geometry/Polygon';
 import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
@@ -120,13 +120,16 @@ const Widget = (props: AllWidgetProps<any>) => {
           return;
         }
 
-        const clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
-        if (clippedAcres <= 0) {
-          console.warn(`⚠ Clipped area <= 0 in buffer ${BUFFER_DISTANCES_MILES[index]} miles.`);
+        let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
+        let originalAcres = feature.attributes.ACRES;
+
+        // 🛠 **Fix: Prevent NaN errors**
+        if (isNaN(clippedAcres) || clippedAcres <= 0 || !originalAcres || originalAcres <= 0) {
+          console.warn(`⚠ Invalid clipped area detected in buffer ${BUFFER_DISTANCES_MILES[index]} miles. Skipping.`);
           return;
         }
 
-        const ratio = clippedAcres / feature.attributes.ACRES;
+        const ratio = clippedAcres / originalAcres;
         const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
         summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
 
