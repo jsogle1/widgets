@@ -52,11 +52,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     console.log("📍 Processing Point:", point);
 
     if (!state.jimuMapView) {
+      console.error("❌ Map view not loaded.");
       setState({ ...state, errorMessage: "Map view not loaded. Add a Map widget." });
       return;
     }
 
     if (!state.siteName.trim()) {
+      console.error("❌ No site name entered.");
       setState({ ...state, errorMessage: "Please enter a site name." });
       return;
     }
@@ -65,11 +67,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
     const bufferDistances = props.config?.bufferDistances || [0.25, 0.5, 1, 2, 3, 4];
 
+    console.log("🔄 Finding Census Layer...");
     const censusLayer = state.jimuMapView.view.map.allLayers.find(
       (layer) => layer.title === "CensusBlocks2010"
     ) as FeatureLayer;
 
     if (!censusLayer) {
+      console.error("❌ Census layer not found.");
       setState({
         ...state,
         errorMessage: "Census layer (CensusBlocks2010) not found in the map.",
@@ -77,6 +81,8 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       });
       return;
     }
+
+    console.log("✅ Census Layer Found:", censusLayer);
 
     let buffers: __esri.Polygon[];
     try {
