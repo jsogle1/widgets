@@ -1,8 +1,1 @@
-VSCODE
-import { project as projectOperator } from '@arcgis/core/geometry/operators/projectOperator';
-
-message:Module '"@arcgis/core/geometry/operators/projectOperator"' has no exported member 'project'.ts(2305)
-
-Console: init.js:31 Error: scriptError: https://js.arcgis.com/4.30/esri/geometry/operators/projectOperator.js
-    at h (init.js:6:46)
-    at HTMLScriptElement.<anonymous> (init.js:30:173)
+[esri.core.accessorSupport.ensureTypes] Accessor#set Invalid property value, value needs to be one of 'esri.geometry.Extent', 'esri.geometry.Multipoint', 'esri.geometry.Point', 'esri.geometry.Polyline', 'esri.geometry.Polygon', or a plain object that can autocast (having .type = 'extent', 'multipoint', 'point', 'polyline', 'polygon')
