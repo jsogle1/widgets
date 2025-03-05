@@ -10,42 +10,26 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
-// Configuration interface for buffer distances
-interface IConfig {
-  bufferDistances: number[];
-}
-
-// State interface for the widget
-interface IState {
-  jimuMapView: JimuMapView | null;
-  latitude: string;
-  longitude: string;
-  siteName: string;
-  errorMessage: string | null;
-  isLoading: boolean;
-}
-
 // Convert miles to meters (1 mile = 1609.34 meters)
 const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map((miles) => miles * 1609.34);
 
 // Colors for each buffer (from inner to outer)
 const BUFFER_COLORS = [
-  [255, 0, 0, 0.3],  // Red
-  [255, 165, 0, 0.3], // Orange
-  [255, 255, 0, 0.3], // Yellow
-  [0, 128, 0, 0.3],   // Green
-  [0, 0, 255, 0.3],   // Blue
-  [128, 0, 128, 0.3]  // Purple
+  [255, 0, 0, 0.4],  // Red
+  [255, 165, 0, 0.4], // Orange
+  [255, 255, 0, 0.4], // Yellow
+  [0, 128, 0, 0.4],   // Green
+  [0, 0, 255, 0.4],   // Blue
+  [128, 0, 128, 0.4]  // Purple
 ];
 
-const Widget = (props: AllWidgetProps<IConfig>) => {
-  const [state, setState] = React.useState<IState>({
-    jimuMapView: null,
+const Widget = (props: AllWidgetProps<any>) => {
+  const [state, setState] = React.useState({
+    jimuMapView: null as JimuMapView | null,
     latitude: '',
     longitude: '',
-    siteName: '',
-    errorMessage: null,
+    errorMessage: null as string | null,
     isLoading: false,
   });
 
@@ -70,10 +54,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     const lon = parseFloat(longitude);
 
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      setState({
-        ...state,
-        errorMessage: "Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180.",
-      });
+      setState({ ...state, errorMessage: "Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180." });
       return;
     }
 
@@ -121,7 +102,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // 🚀 **Step 2: Create Multiple Buffers**
+    // 🚀 **Step 2: Create Buffers**
     let buffers: Polygon[] = [];
     for (let i = 0; i < BUFFER_DISTANCES_METERS.length; i++) {
       try {
@@ -165,8 +146,9 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
     bufferLayer.add(pointGraphic);
 
-    // Add buffers
+    // **🚀 Fix: Add Each Buffer One by One**
     buffers.forEach((buffer, index) => {
+      console.log(`✅ Adding buffer ${BUFFER_DISTANCES_MILES[index]} miles to map.`);
       const bufferGraphic = new Graphic({
         geometry: buffer,
         symbol: new SimpleFillSymbol({
@@ -176,7 +158,6 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       });
 
       bufferLayer.add(bufferGraphic);
-      console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[index]} miles added to map.`);
     });
 
     console.log("✅ All Buffers & Point Added to Map");
@@ -200,3 +181,4 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 };
 
 export default Widget;
+
