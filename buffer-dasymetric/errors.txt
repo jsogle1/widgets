@@ -1,1 +1,19 @@
-init.js:130 [esri.core.accessorSupport.ensureTypes] Accessor#set Invalid property value, value needs to be one of 'esri.geometry.Extent', 'esri.geometry.Multipoint', 'esri.geometry.Point', 'esri.geometry.Polyline', 'esri.geometry.Polygon', or a plain object that can autocast (having .type = 'extent', 'multipoint', 'point', 'polyline', 'polygon')
+
+1-2 miles
+: 
+6421
+2-3 miles
+: 
+16308
+3-4 miles
+: 
+25582
+4-5 miles
+: 
+35875
+¼-½ mile
+: 
+0
+½-1 mile
+: 
+0
