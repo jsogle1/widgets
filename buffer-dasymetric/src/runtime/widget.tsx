@@ -155,6 +155,15 @@ const Widget = (props: AllWidgetProps<any>) => {
                 color: BUFFER_COLORS[index],
                 outline: { color: [0, 0, 0], width: 1 }
               }),
+              popupTemplate: {
+                title: `Census Block Data`,
+                content: `
+                  <b>Original Acres:</b> ${feature.attributes.ACRES} <br>
+                  <b>Clipped Acres (ACRES2):</b> ${clippedAcres.toFixed(2)} <br>
+                  <b>Percentage Retained:</b> ${(ratio * 100).toFixed(2)}% <br>
+                  <b>Adjusted Population (ADJ_POP):</b> ${adjPop}
+                `
+              }
             });
 
             bufferLayer.add(clippedGraphic);
