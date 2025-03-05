@@ -3,6 +3,7 @@ import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
+import Polygon from '@arcgis/core/geometry/Polygon';
 import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
@@ -79,10 +80,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     try {
       await projection.load();
       const mapSR = state.jimuMapView.view.spatialReference;
-      let projectedPoint: Point;
-      
+      let projectedPoint: Point | null = null;
+
       try {
-        projectedPoint = projection.project(point, mapSR) as Point;
+        const projected = projection.project(point, mapSR);
+        if (!projected) throw new Error("Projection failed. Returned null.");
+        if (projected.type !== "point") throw new Error("Projection returned invalid geometry.");
+        projectedPoint = projected as Point;
       } catch (projError) {
         setState({
           ...state,
@@ -93,9 +97,17 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       }
 
       buffers = bufferDistances.map((distance) => {
-        const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, "meters");
-        return buffer ? (Array.isArray(buffer) ? buffer[0] : buffer) : null;
-      }).filter((buffer): buffer is __esri.Polygon => !!buffer);
+        const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
+        if (!buffer) {
+          console.error(`❌ Buffer failed at distance: ${distance}`);
+          return null;
+        }
+        if (buffer.type !== "polygon") {
+          console.error(`❌ Buffer returned non-polygon at distance: ${distance}`);
+          return null;
+        }
+        return buffer as Polygon;
+      }).filter((buffer): buffer is Polygon => !!buffer);
 
       if (buffers.length === 0) {
         throw new Error("No valid buffers were created.");
@@ -106,7 +118,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
 
     const query = censusLayer.createQuery();
-    query.geometry = buffers[buffers.length - 1];
+    query.geometry = buffers[buffers.length - 1] as Polygon;
     query.outFields = ["TOTALPOP", "ACRES"];
 
     try {
@@ -156,39 +168,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
       <div style={{ marginTop: "10px" }}>
         <h4>Enter Coordinates and Site Name</h4>
-        <TextInput
-          placeholder="Latitude"
-          value={state.latitude}
-          onChange={(e) => setState({ ...state, latitude: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <TextInput
-          placeholder="Longitude"
-          value={state.longitude}
-          onChange={(e) => setState({ ...state, longitude: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <TextInput
-          placeholder="Site Name"
-          value={state.siteName}
-          onChange={(e) => setState({ ...state, siteName: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <Button onClick={handleCoordinateSubmit} disabled={state.isLoading}>
-          {state.isLoading ? "Processing..." : "Buffer Coordinates"}
-        </Button>
+        <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} style={{ marginRight: "10px", width: "150px" }} />
+        <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} style={{ marginRight: "10px", width: "150px" }} />
+        <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} style={{ marginRight: "10px", width: "150px" }} />
+        <Button onClick={handleCoordinateSubmit} disabled={state.isLoading}>{state.isLoading ? "Processing..." : "Buffer Coordinates"}</Button>
       </div>
 
-      {state.errorMessage && (
-        <Alert
-          type="error"
-          text={state.errorMessage}
-          withIcon
-          closable
-          onClose={() => setState({ ...state, errorMessage: null })}
-          style={{ marginTop: "10px" }}
-        />
-      )}
+      {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} style={{ marginTop: "10px" }} />}
     </div>
   );
 };
