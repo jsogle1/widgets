@@ -3,10 +3,12 @@ import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
+import Polygon from '@arcgis/core/geometry/Polygon';
 import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
+import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
 // Configuration interface for buffer distances
 interface IConfig {
@@ -23,8 +25,8 @@ interface IState {
   isLoading: boolean;
 }
 
-// Conversion constant: 1 mile = 1609.34 meters
-const MILES_TO_METERS = 1609.34;
+// Buffer distance in meters (example: 5000m = 5km)
+const BUFFER_DISTANCE_METERS = 5000;
 
 const Widget = (props: AllWidgetProps<IConfig>) => {
   const [state, setState] = React.useState<IState>({
@@ -108,27 +110,53 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // 🚀 **Step 2: Add Point to the Map**
-    let pointLayer = state.jimuMapView.view.map.findLayerById("point-layer") as GraphicsLayer;
-    if (!pointLayer) {
-      pointLayer = new GraphicsLayer({ id: "point-layer" });
-      state.jimuMapView.view.map.add(pointLayer);
+    // 🚀 **Step 2: Create Buffer in Meters**
+    let bufferPolygon: Polygon | null = null;
+    try {
+      console.log(`🔄 Creating buffer of ${BUFFER_DISTANCE_METERS} meters...`);
+      const buffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCE_METERS, "meters");
+
+      if (!buffer || buffer.type !== "polygon") {
+        throw new Error(`Buffer creation failed. Expected 'polygon', got '${buffer?.type || "undefined"}'`);
+      }
+
+      bufferPolygon = buffer as Polygon;
+      console.log("✅ Buffer Created Successfully:", bufferPolygon);
+    } catch (error) {
+      console.error("❌ Buffer Creation Failed:", error);
+      setState({ ...state, errorMessage: "Error creating buffer.", isLoading: false });
+      return;
     }
 
-    pointLayer.removeAll(); // Clear old points
+    // 🚀 **Step 3: Add Point & Buffer to the Map**
+    let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
+    if (!bufferLayer) {
+      bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
+      state.jimuMapView.view.map.add(bufferLayer);
+    }
+    bufferLayer.removeAll(); // Clear old graphics
 
     const pointGraphic = new Graphic({
       geometry: projectedPoint,
       symbol: {
         type: "simple-marker",
-        color: [0, 0, 255], // Blue
+        color: [0, 0, 255], // Blue point
         size: "10px",
         outline: { color: [0, 0, 0], width: 1 }
       }
     });
 
-    pointLayer.add(pointGraphic);
-    console.log("✅ Projected Point Added to Map");
+    const bufferGraphic = new Graphic({
+      geometry: bufferPolygon,
+      symbol: new SimpleFillSymbol({
+        color: [255, 0, 0, 0.3], // Red transparent fill
+        outline: { color: [255, 0, 0], width: 1 }
+      }),
+    });
+
+    bufferLayer.add(pointGraphic);
+    bufferLayer.add(bufferGraphic);
+    console.log("✅ Buffer & Point Added to Map");
 
     setState({ ...state, isLoading: false });
   };
@@ -159,7 +187,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
           style={{ marginRight: "10px", width: "150px" }}
         />
         <Button onClick={processPoint} disabled={state.isLoading}>
-          {state.isLoading ? "Processing..." : "Add Point to Map"}
+          {state.isLoading ? "Processing..." : "Add Buffer to Map"}
         </Button>
       </div>
 
