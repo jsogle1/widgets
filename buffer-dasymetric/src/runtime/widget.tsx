@@ -139,12 +139,18 @@ buffers = bufferDistances.map((distance) => {
             return null;
         }
 
-        // **Fix: If buffer is an array, take the first item**
+        // **Ensure it's a Polygon and Not an Empty Array**
         const validBuffer = Array.isArray(buffer) ? buffer[0] : buffer;
 
         if (!validBuffer || validBuffer.type !== "polygon") {
             console.error(`❌ Buffer rejected: Expected 'polygon', got '${validBuffer?.type}'`);
             return null;
+        }
+
+        // 🚀 **Force Assign Spatial Reference**
+        if (!validBuffer.spatialReference || !validBuffer.spatialReference.wkid) {
+            console.warn(`⚠️ Buffer is missing spatial reference. Assigning map's SR.`);
+            validBuffer.spatialReference = state.jimuMapView?.view.spatialReference;
         }
 
         console.log("✅ Valid Buffer Created:", validBuffer);
@@ -154,7 +160,6 @@ buffers = bufferDistances.map((distance) => {
         return null;
     }
 }).filter((buffer): buffer is Polygon => !!buffer);
-
       if (buffers.length === 0) {
         console.error("❌ No valid buffers were created.");
         setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
