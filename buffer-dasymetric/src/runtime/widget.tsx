@@ -188,9 +188,17 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     <div className="widget-dasymetric jimu-widget" style={{ padding: "10px" }}>
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+
+      <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+      <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+      <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} />
+      <Button onClick={() => processPoint(new Point({ latitude: parseFloat(state.latitude), longitude: parseFloat(state.longitude), spatialReference: { wkid: 4326 } }))} disabled={state.isLoading}>
+        {state.isLoading ? "Processing..." : "Buffer Coordinates"}
+      </Button>
+
+      {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
   );
 };
 
 export default Widget;
-
