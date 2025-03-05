@@ -153,7 +153,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
 
     console.log("🔄 Querying Census Layer...");
-    const lastBuffer = buffers.length > 0 ? buffers[buffers.length - 1] : null;
+    let lastBuffer = buffers.length > 0 ? buffers[buffers.length - 1] : null;
 
     if (!lastBuffer) {
       console.error("❌ Error: No valid buffer found for query.");
@@ -161,18 +161,28 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // Ensure spatial reference exists
+    // 🚀 Force buffer to have a valid spatial reference
     if (!lastBuffer.spatialReference || !lastBuffer.spatialReference.wkid) {
       console.warn("⚠️ Warning: Buffer is missing spatial reference. Assigning map's SR.");
       lastBuffer.spatialReference = state.jimuMapView?.view.spatialReference;
     }
 
-    console.log("✅ Final Buffer Type:", lastBuffer?.type);
-    console.log("🌍 Final Buffer Spatial Reference:", lastBuffer.spatialReference);
+    // 🚀 Re-project buffer to ensure validity
+    try {
+      console.log("🔄 Re-projecting buffer...");
+      const projectedBuffer = projection.project(lastBuffer, state.jimuMapView.view.spatialReference);
+      
+      if (!projectedBuffer || projectedBuffer.type !== "polygon") {
+        console.error(`❌ Buffer projection failed. Expected 'polygon', got '${projectedBuffer?.type || "undefined"}'`);
+        setState({ ...state, errorMessage: `Error: Buffer projection failed.`, isLoading: false });
+        return;
+      }
 
-    if (lastBuffer.type !== "polygon") {
-      console.error(`❌ Invalid buffer type for query. Expected 'polygon', got '${lastBuffer.type}'`);
-      setState({ ...state, errorMessage: `Error: Invalid buffer type for query.`, isLoading: false });
+      lastBuffer = projectedBuffer as Polygon;
+      console.log("✅ Buffer successfully re-projected:", lastBuffer);
+    } catch (error) {
+      console.error("❌ Buffer projection error:", error);
+      setState({ ...state, errorMessage: "Error: Buffer projection failed.", isLoading: false });
       return;
     }
 
@@ -187,13 +197,6 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     <div className="widget-dasymetric jimu-widget" style={{ padding: "10px" }}>
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
-
-      <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
-      <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
-      <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} />
-      <Button onClick={() => processPoint(new Point({ latitude: parseFloat(state.latitude), longitude: parseFloat(state.longitude), spatialReference: { wkid: 4326 } }))} disabled={state.isLoading}>
-        {state.isLoading ? "Processing..." : "Buffer Coordinates"}
-      </Button>
 
       {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
