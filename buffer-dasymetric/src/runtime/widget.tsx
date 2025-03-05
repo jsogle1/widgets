@@ -48,7 +48,35 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     setState({ ...state, jimuMapView: jmv });
   };
 
-  const processPoint = async (point: Point) => {
+  const processPoint = async () => {
+    const { latitude, longitude } = state;
+
+    if (!latitude.trim() || !longitude.trim()) {
+      setState({ ...state, errorMessage: "Please enter both latitude and longitude." });
+      return;
+    }
+
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      setState({
+        ...state,
+        errorMessage: "Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180.",
+      });
+      return;
+    }
+
+    const point = new Point({
+      latitude: lat,
+      longitude: lon,
+      spatialReference: { wkid: 4326 }, // WGS84
+    });
+
+    await processBuffer(point);
+  };
+
+  const processBuffer = async (point: Point) => {
     console.log("📍 Processing Point:", point);
 
     if (!state.jimuMapView) {
@@ -97,8 +125,9 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         const projected = projection.project(point, mapSR);
         console.log("🔍 Projected Result:", projected);
 
-        if (!projected) throw new Error("Projection returned null.");
-        if (projected.type !== "point") throw new Error(`Invalid projected type: ${projected.type}`);
+        if (!projected || projected.type !== "point") {
+          throw new Error("Projection failed or returned invalid type.");
+        }
 
         projectedPoint = projected as Point;
         console.log("✅ Projected Point Confirmed:", projectedPoint);
@@ -112,29 +141,18 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         return;
       }
 
-      console.log("🌍 Map Spatial Reference Before Buffering:", projectedPoint.spatialReference);
-
       buffers = bufferDistances.map((distance) => {
         console.log(`🔄 Attempting to buffer at ${distance} miles...`);
         try {
-          const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
+          const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, "meters");
 
-          console.log("🔍 Raw Buffer Output:", buffer);
-
-          if (!buffer) {
-            console.error(`❌ Buffer creation failed at ${distance} miles - buffer returned undefined.`);
+          if (!buffer || buffer.type !== "polygon") {
+            console.error(`❌ Buffer failed at ${distance} miles.`);
             return null;
           }
 
-          const validBuffer = Array.isArray(buffer) ? buffer[0] : buffer;
-
-          if (!validBuffer || validBuffer.type !== "polygon") {
-            console.error(`❌ Buffer rejected: Expected 'polygon', got '${validBuffer?.type}'`);
-            return null;
-          }
-
-          console.log("✅ Valid Buffer Created:", validBuffer);
-          return validBuffer as Polygon;
+          console.log("✅ Valid Buffer Created:", buffer);
+          return buffer as Polygon;
         } catch (error) {
           console.error(`❌ Exception during buffering at ${distance} miles:`, error);
           return null;
@@ -152,51 +170,40 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    console.log("🔄 Querying Census Layer...");
-    let lastBuffer = buffers.length > 0 ? buffers[buffers.length - 1] : null;
+    console.log("✅ Buffers created successfully:", buffers);
 
-    if (!lastBuffer) {
-      console.error("❌ Error: No valid buffer found for query.");
-      setState({ ...state, errorMessage: "Error: No valid buffer found for query.", isLoading: false });
-      return;
-    }
-
-    // 🚀 Force buffer to have a valid spatial reference
-    if (!lastBuffer.spatialReference || !lastBuffer.spatialReference.wkid) {
-      console.warn("⚠️ Warning: Buffer is missing spatial reference. Assigning map's SR.");
-      lastBuffer.spatialReference = state.jimuMapView?.view.spatialReference;
-    }
-
-    // 🚀 Re-project buffer to ensure validity
-    try {
-      console.log("🔄 Re-projecting buffer...");
-      const projectedBuffer = projection.project(lastBuffer, state.jimuMapView.view.spatialReference);
-      
-      if (!projectedBuffer || projectedBuffer.type !== "polygon") {
-        console.error(`❌ Buffer projection failed. Expected 'polygon', got '${projectedBuffer?.type || "undefined"}'`);
-        setState({ ...state, errorMessage: `Error: Buffer projection failed.`, isLoading: false });
-        return;
-      }
-
-      lastBuffer = projectedBuffer as Polygon;
-      console.log("✅ Buffer successfully re-projected:", lastBuffer);
-    } catch (error) {
-      console.error("❌ Buffer projection error:", error);
-      setState({ ...state, errorMessage: "Error: Buffer projection failed.", isLoading: false });
-      return;
-    }
-
-    console.log("✅ Using buffer for query:", lastBuffer);
-
-    const query = censusLayer.createQuery();
-    query.geometry = lastBuffer as Polygon;
-    console.log("✅ Query Geometry Set:", query.geometry);
+    setState({ ...state, isLoading: false, errorMessage: null });
   };
 
   return (
     <div className="widget-dasymetric jimu-widget" style={{ padding: "10px" }}>
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+
+      <div style={{ marginTop: "10px" }}>
+        <h4>Enter Coordinates and Site Name</h4>
+        <TextInput
+          placeholder="Latitude"
+          value={state.latitude}
+          onChange={(e) => setState({ ...state, latitude: e.target.value })}
+          style={{ marginRight: "10px", width: "150px" }}
+        />
+        <TextInput
+          placeholder="Longitude"
+          value={state.longitude}
+          onChange={(e) => setState({ ...state, longitude: e.target.value })}
+          style={{ marginRight: "10px", width: "150px" }}
+        />
+        <TextInput
+          placeholder="Site Name"
+          value={state.siteName}
+          onChange={(e) => setState({ ...state, siteName: e.target.value })}
+          style={{ marginRight: "10px", width: "150px" }}
+        />
+        <Button onClick={processPoint} disabled={state.isLoading}>
+          {state.isLoading ? "Processing..." : "Buffer Coordinates"}
+        </Button>
+      </div>
 
       {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
