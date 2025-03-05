@@ -25,8 +25,19 @@ interface IState {
   isLoading: boolean;
 }
 
-// Buffer distance in meters (example: 5000m = 5km)
-const BUFFER_DISTANCE_METERS = 5000;
+// Convert miles to meters (1 mile = 1609.34 meters)
+const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];
+const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map((miles) => miles * 1609.34);
+
+// Colors for each buffer (from inner to outer)
+const BUFFER_COLORS = [
+  [255, 0, 0, 0.3],  // Red
+  [255, 165, 0, 0.3], // Orange
+  [255, 255, 0, 0.3], // Yellow
+  [0, 128, 0, 0.3],   // Green
+  [0, 0, 255, 0.3],   // Blue
+  [128, 0, 128, 0.3]  // Purple
+];
 
 const Widget = (props: AllWidgetProps<IConfig>) => {
   const [state, setState] = React.useState<IState>({
@@ -110,25 +121,30 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       return;
     }
 
-    // 🚀 **Step 2: Create Buffer in Meters**
-    let bufferPolygon: Polygon | null = null;
-    try {
-      console.log(`🔄 Creating buffer of ${BUFFER_DISTANCE_METERS} meters...`);
-      const buffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCE_METERS, "meters");
+    // 🚀 **Step 2: Create Multiple Buffers**
+    let buffers: Polygon[] = [];
+    for (let i = 0; i < BUFFER_DISTANCES_METERS.length; i++) {
+      try {
+        console.log(`🔄 Creating buffer at ${BUFFER_DISTANCES_MILES[i]} miles (${BUFFER_DISTANCES_METERS[i]} meters)...`);
+        const buffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[i], "meters");
 
-      if (!buffer || buffer.type !== "polygon") {
-        throw new Error(`Buffer creation failed. Expected 'polygon', got '${buffer?.type || "undefined"}'`);
+        if (!buffer || buffer.type !== "polygon") {
+          throw new Error(`Buffer creation failed for ${BUFFER_DISTANCES_MILES[i]} miles.`);
+        }
+
+        buffers.push(buffer as Polygon);
+        console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[i]} miles created.`);
+      } catch (error) {
+        console.error(`❌ Buffer Creation Failed for ${BUFFER_DISTANCES_MILES[i]} miles:`, error);
       }
+    }
 
-      bufferPolygon = buffer as Polygon;
-      console.log("✅ Buffer Created Successfully:", bufferPolygon);
-    } catch (error) {
-      console.error("❌ Buffer Creation Failed:", error);
-      setState({ ...state, errorMessage: "Error creating buffer.", isLoading: false });
+    if (buffers.length === 0) {
+      setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
       return;
     }
 
-    // 🚀 **Step 3: Add Point & Buffer to the Map**
+    // 🚀 **Step 3: Add Buffers & Point to the Map**
     let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
     if (!bufferLayer) {
       bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
@@ -136,6 +152,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
     bufferLayer.removeAll(); // Clear old graphics
 
+    // Add point
     const pointGraphic = new Graphic({
       geometry: projectedPoint,
       symbol: {
@@ -146,18 +163,23 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       }
     });
 
-    const bufferGraphic = new Graphic({
-      geometry: bufferPolygon,
-      symbol: new SimpleFillSymbol({
-        color: [255, 0, 0, 0.3], // Red transparent fill
-        outline: { color: [255, 0, 0], width: 1 }
-      }),
+    bufferLayer.add(pointGraphic);
+
+    // Add buffers
+    buffers.forEach((buffer, index) => {
+      const bufferGraphic = new Graphic({
+        geometry: buffer,
+        symbol: new SimpleFillSymbol({
+          color: BUFFER_COLORS[index], // Different color per buffer
+          outline: { color: [0, 0, 0], width: 1 }
+        }),
+      });
+
+      bufferLayer.add(bufferGraphic);
+      console.log(`✅ Buffer ${BUFFER_DISTANCES_MILES[index]} miles added to map.`);
     });
 
-    bufferLayer.add(pointGraphic);
-    bufferLayer.add(bufferGraphic);
-    console.log("✅ Buffer & Point Added to Map");
-
+    console.log("✅ All Buffers & Point Added to Map");
     setState({ ...state, isLoading: false });
   };
 
@@ -166,40 +188,13 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
 
-      <div style={{ marginTop: "10px" }}>
-        <h4>Enter Coordinates and Site Name</h4>
-        <TextInput
-          placeholder="Latitude"
-          value={state.latitude}
-          onChange={(e) => setState({ ...state, latitude: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <TextInput
-          placeholder="Longitude"
-          value={state.longitude}
-          onChange={(e) => setState({ ...state, longitude: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <TextInput
-          placeholder="Site Name"
-          value={state.siteName}
-          onChange={(e) => setState({ ...state, siteName: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <Button onClick={processPoint} disabled={state.isLoading}>
-          {state.isLoading ? "Processing..." : "Add Buffer to Map"}
-        </Button>
-      </div>
+      <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+      <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+      <Button onClick={processPoint} disabled={state.isLoading}>
+        {state.isLoading ? "Processing..." : "Add Buffers to Map"}
+      </Button>
 
-      {state.errorMessage && (
-        <Alert
-          type="error"
-          text={state.errorMessage}
-          withIcon
-          closable
-          onClose={() => setState({ ...state, errorMessage: null })}
-        />
-      )}
+      {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
   );
 };
