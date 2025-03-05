@@ -178,47 +178,46 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     // 🚀 **Step 1: Get or Create a GraphicsLayer**
     let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
     if (!bufferLayer) {
-        bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
-        state.jimuMapView.view.map.add(bufferLayer);
+      bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
+      state.jimuMapView.view.map.add(bufferLayer);
     }
 
     // 🚀 **Step 2: Convert Buffers into Graphics and Add Them to the Map**
     bufferLayer.removeAll(); // Clear existing buffers before adding new ones
 
     buffers.forEach((buffer, index) => {
+      console.log(`🔍 Checking Buffer ${index + 1} Before Adding to Map:`, JSON.stringify(buffer, null, 2));
+
+      if (!buffer || typeof buffer !== "object") {
+        console.error(`❌ Buffer ${index + 1} is not an object. Skipping.`);
+        return;
+      }
+
+      if (buffer.type !== "polygon") {
+        console.error(`❌ Buffer ${index + 1} has an invalid type. Expected 'polygon', got '${buffer.type}'. Skipping.`);
+        return;
+      }
+
+      try {
         const bufferGraphic = new Graphic({
-            geometry: buffer,
-            symbol: new SimpleFillSymbol({
-                color: [255, 0, 0, 0.3], // Red with transparency
-                outline: {
-                    color: [255, 0, 0],
-                    width: 1,
-                }
-            })
+          geometry: buffer,
+          symbol: new SimpleFillSymbol({
+            color: [255, 0, 0, 0.3], // Red with transparency
+            outline: {
+              color: [255, 0, 0],
+              width: 1,
+            },
+          }),
         });
 
         bufferLayer.add(bufferGraphic);
         console.log(`✅ Buffer ${index + 1} added to map.`);
+      } catch (error) {
+        console.error(`❌ Failed to add Buffer ${index + 1} to the map:`, error);
+      }
     });
 
     setState({ ...state, isLoading: false, errorMessage: null });
   };
-
-  return (
-    <div className="widget-dasymetric jimu-widget" style={{ padding: "10px" }}>
-      <h1>Buffer Dasymetric Widget</h1>
-      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
-
-      <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
-      <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
-      <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} />
-      <Button onClick={processPoint} disabled={state.isLoading}>
-        {state.isLoading ? "Processing..." : "Buffer Coordinates"}
-      </Button>
-
-      {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
-    </div>
-  );
 };
-
 export default Widget;
