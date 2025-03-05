@@ -3,6 +3,7 @@ import { JimuMapViewComponent, type JimuMapView } from 'jimu-arcgis';
 import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
+import Polygon from '@arcgis/core/geometry/Polygon';
 import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
@@ -28,7 +29,6 @@ interface IState {
 const MILES_TO_METERS = 1609.34;
 
 const Widget = (props: AllWidgetProps<IConfig>) => {
-  // Initialize state
   const [state, setState] = React.useState<IState>({
     jimuMapView: null,
     latitude: '',
@@ -39,257 +39,147 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     bufferResults: [],
   });
 
-  // Handler for when the map view is initialized or changed
   const activeViewChangeHandler = (jmv: JimuMapView) => {
-    console.log('Map view received:', jmv ? 'Valid' : 'Null');
+    console.log("🌍 MapView Activated:", jmv);
     if (!jmv) {
-      console.error('No map view available. Check Map widget ID (widget_6).');
       setState({ ...state, errorMessage: 'No map view available. Check Map widget linkage.' });
       return;
     }
     setState({ ...state, jimuMapView: jmv });
-    jmv.view.when(() => {
-      console.log('Map view loaded, spatial reference:', jmv.view.spatialReference.wkid);
-    }).catch((err) => {
-      console.error('Map view failed to load:', err);
-      setState({ ...state, errorMessage: 'Failed to load map view: ' + err.message });
-    });
   };
 
-  // Process the input point and perform buffering
   const processPoint = async (point: Point) => {
+    console.log("📍 Processing Point:", point);
+
     if (!state.jimuMapView) {
-      setState({ ...state, errorMessage: 'Map view not loaded. Add a Map widget.' });
+      setState({ ...state, errorMessage: "Map view not loaded. Add a Map widget." });
       return;
     }
+
     if (!state.siteName.trim()) {
-      setState({ ...state, errorMessage: 'Please enter a site name.' });
+      setState({ ...state, errorMessage: "Please enter a site name." });
       return;
     }
 
     setState({ ...state, isLoading: true, errorMessage: null });
+
     const bufferDistances = props.config?.bufferDistances || [0.25, 0.5, 1, 2, 3, 4];
+
+    console.log("🔄 Finding Census Layer...");
     const censusLayer = state.jimuMapView.view.map.allLayers.find(
-      (layer) => layer.title === 'CensusBlocks2010'
+      (layer) => layer.title === "CensusBlocks2010"
     ) as FeatureLayer;
 
     if (!censusLayer) {
+      console.error("❌ Census layer not found.");
       setState({
         ...state,
-        errorMessage: 'Census layer (CensusBlocks2010) not found in the map.',
+        errorMessage: "Census layer (CensusBlocks2010) not found in the map.",
         isLoading: false,
       });
       return;
     }
 
-    let buffers: __esri.Geometry[];
-    try {
-      // Load the projection engine
-      await projection.load();
-      console.log('Projection engine loaded successfully');
+    console.log("✅ Census Layer Found:", censusLayer);
 
-      // Project the point to the map's spatial reference
+    let buffers: __esri.Polygon[];
+    try {
+      console.log("🔄 Loading Projection Engine...");
+      await projection.load();
+      console.log("✅ Projection Engine Loaded.");
+
       const mapSR = state.jimuMapView.view.spatialReference;
-      let projectedPoint: Point;
+      console.log("🌍 Map Spatial Reference:", mapSR);
+
+      let projectedPoint: Point | null = null;
       try {
-        projectedPoint = projection.project(point, mapSR) as Point;
-        console.log('Point projected to map spatial reference:', projectedPoint);
+        console.log("🔄 Projecting Point...");
+        const projected = projection.project(point, mapSR);
+        console.log("🔍 Projected Result:", projected);
+
+        if (!projected) throw new Error("Projection returned null.");
+        if (projected.type !== "point") throw new Error(`Invalid projected type: ${projected.type}`);
+
+        projectedPoint = projected as Point;
+        console.log("✅ Projected Point Confirmed:", projectedPoint);
       } catch (projError) {
-        console.error('Projection failed:', projError);
+        console.error("❌ Projection Failed:", projError);
         setState({
           ...state,
-          errorMessage: 'Failed to project point to map spatial reference.',
+          errorMessage: "Failed to project point to map spatial reference.",
           isLoading: false,
         });
         return;
       }
 
-      // Validate the projected point
-      if (!projectedPoint || !projectedPoint.spatialReference) {
-        throw new Error('Projected point is invalid or missing spatial reference.');
-      }
-
-      // Create buffers in meters
+      console.log("📏 Creating Buffers...");
       buffers = bufferDistances.map((distance) => {
-        const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, 'meters');
+        console.log(`🔄 Buffering at ${distance} miles...`);
+        const buffer = geometryEngine.buffer(projectedPoint as Point, distance * MILES_TO_METERS, "meters");
+        console.log("🔍 Buffer Output:", buffer);
+
         if (!buffer) {
-          console.error('Failed to create buffer for distance:', distance);
+          console.error(`❌ Buffer failed at distance: ${distance}`);
+          return null;
         }
-        return buffer;
-      }).filter((buffer) => buffer && buffer.spatialReference); // Filter out invalid buffers
+        if (buffer.type !== "polygon") {
+          console.error(`❌ Buffer returned invalid type: ${buffer.type}`);
+          return null;
+        }
+        return buffer as Polygon;
+      }).filter((buffer): buffer is Polygon => !!buffer);
+
+      console.log("✅ Final Buffers List:", buffers);
 
       if (buffers.length === 0) {
-        throw new Error('No valid buffers were created.');
+        throw new Error("No valid buffers were created.");
       }
-      console.log('Buffers created:', buffers);
     } catch (error) {
-      console.error('Error in projection or buffering:', error);
-      setState({
-        ...state,
-        errorMessage: Error processing data: ${error.message},
-        isLoading: false,
-      });
+      console.error("❌ Buffering Error:", error);
+      setState({ ...state, errorMessage: `Error processing data: ${error.message}`, isLoading: false });
       return;
     }
 
-    // Query the census layer with the largest buffer
+    console.log("🔄 Querying Census Layer...");
     const query = censusLayer.createQuery();
-    query.geometry = buffers[buffers.length - 1];
-    query.outFields = ['TOTALPOP', 'ACRES'];
+    query.geometry = buffers[buffers.length - 1] as Polygon;
+    console.log("✅ Query Geometry Set:", query.geometry);
+
+    query.outFields = ["TOTALPOP", "ACRES"];
 
     try {
       const result = await censusLayer.queryFeatures(query);
+      console.log("✅ Query Result:", result);
+
       if (!result.features.length) {
-        setState({
-          ...state,
-          errorMessage: 'No census features found within the largest buffer.',
-          isLoading: false,
-        });
+        setState({ ...state, errorMessage: "No census features found within the largest buffer.", isLoading: false });
         return;
       }
 
-      // Calculate buffer results using intersection
-      const bufferResults = bufferDistances.map((distance, index) => {
-        const clippedFeatures = result.features.filter((feature) => {
-          if (!feature.geometry || !feature.geometry.spatialReference) {
-            console.warn('Skipping feature with invalid geometry:', feature);
-            return false;
-          }
-          if (!buffers[index] || !buffers[index].spatialReference) {
-            console.warn('Skipping invalid buffer at index:', index);
-            return false;
-          }
-          return geometryEngine.intersects(buffers[index], feature.geometry);
-        });
+      setState({ ...state, isLoading: false, errorMessage: null });
 
-        const totalPop = clippedFeatures.reduce(
-          (sum, feature) => sum + (feature.attributes?.TOTALPOP || 0),
-          0
-        );
-        const totalAcres = clippedFeatures.reduce(
-          (sum, feature) => sum + (feature.attributes?.ACRES || 0),
-          0
-        );
-        const popDensity = totalPop > 0 && totalAcres > 0 ? totalPop / totalAcres : 0;
-
-        return {
-          Distance: distance,
-          Features: clippedFeatures.length,
-          Population: totalPop,
-          Clip_Pop: totalPop,
-          Clip_Area: totalAcres,
-          POP_DEN: popDensity,
-        };
-      });
-
-      setState({ ...state, isLoading: false, errorMessage: null, bufferResults });
-      console.log('Buffer analysis completed:', bufferResults);
-
-      // Export results to CSV
-      const csvData = Papa.unparse(bufferResults, { header: true });
-      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8' });
-      saveAs(blob, ${state.siteName}_buffer_results.csv);
     } catch (error) {
-      console.error('Buffer processing error:', error);
-      setState({
-        ...state,
-        errorMessage: Error processing data: ${error.message},
-        isLoading: false,
-      });
+      console.error("❌ Query Processing Error:", error);
+      setState({ ...state, errorMessage: `Error processing data: ${error.message}`, isLoading: false });
     }
   };
 
-  // Handle coordinate submission from the UI
-  const handleCoordinateSubmit = async () => {
-    const { latitude, longitude } = state;
-
-    if (!latitude.trim() || !longitude.trim()) {
-      setState({ ...state, errorMessage: 'Please enter both latitude and longitude.' });
-      return;
-    }
-
-    const lat = parseFloat(latitude);
-    const lon = parseFloat(longitude);
-
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      setState({
-        ...state,
-        errorMessage: 'Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180.',
-      });
-      return;
-    }
-
-    const point = new Point({
-      latitude: lat,
-      longitude: lon,
-      spatialReference: { wkid: 4326 }, // WGS84
-    });
-
-    await processPoint(point);
-  };
-
-  // Render the widget UI
   return (
-    <div className="widget-dasymetric jimu-widget" style={{ padding: '10px' }}>
+    <div className="widget-dasymetric jimu-widget" style={{ padding: "10px" }}>
       <h1>Buffer Dasymetric Widget</h1>
-      <JimuMapViewComponent
-        useMapWidgetId="widget_6" // Hardcoded Map widget ID; adjust as needed
-        onActiveViewChange={activeViewChangeHandler}
-      />
+      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
 
-      <div style={{ marginTop: '10px' }}>
+      <div style={{ marginTop: "10px" }}>
         <h4>Enter Coordinates and Site Name</h4>
-        <TextInput
-          placeholder="Latitude (e.g., 34.0522)"
-          value={state.latitude}
-          onChange={(e) => setState({ ...state, latitude: e.target.value })}
-          style={{ marginRight: '10px', width: '150px' }}
-        />
-        <TextInput
-          placeholder="Longitude (e.g., -118.2437)"
-          value={state.longitude}
-          onChange={(e) => setState({ ...state, longitude: e.target.value })}
-          style={{ marginRight: '10px', width: '150px' }}
-        />
-        <TextInput
-          placeholder="Site Name (e.g., Site A)"
-          value={state.siteName}
-          onChange={(e) => setState({ ...state, siteName: e.target.value })}
-          style={{ marginRight: '10px', width: '150px' }}
-        />
-        <Button onClick={handleCoordinateSubmit} disabled={state.isLoading}>
-          {state.isLoading ? 'Processing...' : 'Buffer Coordinates'}
+        <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+        <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+        <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} />
+        <Button onClick={() => processPoint(new Point({ latitude: parseFloat(state.latitude), longitude: parseFloat(state.longitude), spatialReference: { wkid: 4326 } }))} disabled={state.isLoading}>
+          {state.isLoading ? "Processing..." : "Buffer Coordinates"}
         </Button>
       </div>
 
-      {state.errorMessage && (
-        <Alert
-          type="error"
-          text={state.errorMessage}
-          withIcon={true}
-          closable={true}
-          onClose={() => setState({ ...state, errorMessage: null })}
-          style={{ marginTop: '10px' }}
-        />
-      )}
-
-      {state.isLoading && <div style={{ marginTop: '10px' }}>Analyzing data...</div>}
-
-      {state.bufferResults.length > 0 && (
-        <div style={{ marginTop: '10px' }}>
-          <h4>Buffer Results</h4>
-          <ul>
-            {state.bufferResults.map((result, index) => (
-              <li key={index}>
-                {result.Distance} miles: {result.Features} features, Population: {result.Population},
-                Adjusted Population: {result.Clip_Pop}, Adjusted Area: {result.Clip_Area} acres,
-                Density: {result.POP_DEN.toFixed(2)} people/acre
-              </li>
-            ))}
-          </ul>
-          <p>CSV exported as {state.siteName}_buffer_results.csv</p>
-        </div>
-      )}
+      {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
   );
 };
