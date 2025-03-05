@@ -132,7 +132,7 @@ const Widget = (props: AllWidgetProps<any>) => {
       return;
     }
 
-    // **🚀 Create & Add Each Buffer AND Clip Census Features**
+    // **🚀 Clip Census Features by Each Buffer**
     BUFFER_DISTANCES_METERS.forEach(async (distance, index) => {
       try {
         console.log(`🔄 Creating buffer at ${BUFFER_DISTANCES_MILES[index]} miles (${distance} meters)...`);
@@ -176,7 +176,16 @@ const Widget = (props: AllWidgetProps<any>) => {
     setState({ ...state, isLoading: false });
   };
 
-  return <div> {/* UI remains unchanged */} </div>;
+  return (
+    <div>
+      <h1>Buffer & Census Clipping Widget</h1>
+      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+      <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+      <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+      <Button onClick={processPoint}>Process</Button>
+    </div>
+  );
 };
 
 export default Widget;
+
