@@ -143,8 +143,26 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     }
 
     console.log("🔄 Querying Census Layer...");
+
+// ✅ FIX: Ensuring `query.geometry` is valid
+    const lastBuffer = buffers.length > 0 ? buffers[buffers.length - 1] : null;
+
+    if (!lastBuffer) {
+        console.error("❌ Error: No valid buffer found for query.");
+        setState({ ...state, errorMessage: "Error: No valid buffer found for query.", isLoading: false });
+        return;
+    }
+
+    if (lastBuffer.type !== "polygon") {
+        console.error(`❌ Invalid buffer type for query. Expected 'polygon', got '${lastBuffer.type}'`);
+        setState({ ...state, errorMessage: `Error: Invalid buffer type for query.`, isLoading: false });
+        return;
+    }
+
+    console.log("✅ Using buffer for query:", lastBuffer);
+
     const query = censusLayer.createQuery();
-    query.geometry = buffers[buffers.length - 1] as Polygon;
+    query.geometry = lastBuffer as Polygon;
     console.log("✅ Query Geometry Set:", query.geometry);
 
     query.outFields = ["TOTALPOP", "ACRES"];
@@ -170,20 +188,9 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
     <div className="widget-dasymetric jimu-widget" style={{ padding: "10px" }}>
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
-
-      <div style={{ marginTop: "10px" }}>
-        <h4>Enter Coordinates and Site Name</h4>
-        <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
-        <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
-        <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} />
-        <Button onClick={() => processPoint(new Point({ latitude: parseFloat(state.latitude), longitude: parseFloat(state.longitude), spatialReference: { wkid: 4326 } }))} disabled={state.isLoading}>
-          {state.isLoading ? "Processing..." : "Buffer Coordinates"}
-        </Button>
-      </div>
-
-      {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
   );
 };
 
 export default Widget;
+
