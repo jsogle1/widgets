@@ -127,23 +127,33 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
         return;
       }
 
-      buffers = bufferDistances.map((distance) => {
-        console.log(`🔄 Attempting to buffer at ${distance} miles...`);
-        try {
-          const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, "meters");
+buffers = bufferDistances.map((distance) => {
+    console.log(`🔄 Attempting to buffer at ${distance} miles...`);
+    try {
+        const buffer = geometryEngine.buffer(projectedPoint, distance * MILES_TO_METERS, "meters");
 
-          if (!buffer || buffer.type !== "polygon") {
-            console.error(`❌ Buffer failed at ${distance} miles.`);
+        console.log("🔍 Raw Buffer Output:", buffer);
+
+        if (!buffer) {
+            console.error(`❌ Buffer creation failed at ${distance} miles - buffer returned undefined.`);
             return null;
-          }
-
-          console.log("✅ Valid Buffer Created:", buffer);
-          return buffer as Polygon;
-        } catch (error) {
-          console.error(`❌ Exception during buffering at ${distance} miles:`, error);
-          return null;
         }
-      }).filter((buffer): buffer is Polygon => !!buffer);
+
+        // **Fix: If buffer is an array, take the first item**
+        const validBuffer = Array.isArray(buffer) ? buffer[0] : buffer;
+
+        if (!validBuffer || validBuffer.type !== "polygon") {
+            console.error(`❌ Buffer rejected: Expected 'polygon', got '${validBuffer?.type}'`);
+            return null;
+        }
+
+        console.log("✅ Valid Buffer Created:", validBuffer);
+        return validBuffer as Polygon;
+    } catch (error) {
+        console.error(`❌ Exception during buffering at ${distance} miles:`, error);
+        return null;
+    }
+}).filter((buffer): buffer is Polygon => !!buffer);
 
       if (buffers.length === 0) {
         console.error("❌ No valid buffers were created.");
