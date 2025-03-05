@@ -123,7 +123,7 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
           return null;
         }
         if (buffer.type !== "polygon") {
-          console.error(`❌ Buffer returned invalid type: ${buffer.type}`);
+          console.error(`❌ Buffer rejected: Expected 'polygon', got '${buffer.type}'`);
           return null;
         }
         return buffer as Polygon;
@@ -132,7 +132,9 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       console.log("✅ Final Buffers List:", buffers);
 
       if (buffers.length === 0) {
-        throw new Error("No valid buffers were created.");
+        console.error("❌ No valid buffers were created.");
+        setState({ ...state, errorMessage: "Error: No valid buffers were created.", isLoading: false });
+        return;
       }
     } catch (error) {
       console.error("❌ Buffering Error:", error);
