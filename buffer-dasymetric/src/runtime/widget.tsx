@@ -8,6 +8,9 @@ import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert } from 'jimu-ui';
 import * as Papa from 'papaparse';
 import { saveAs } from 'file-saver';
+import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import Graphic from '@arcgis/core/Graphic';
+import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
 // Configuration interface for buffer distances
 interface IConfig {
@@ -172,6 +175,32 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
 
     console.log("✅ Buffers created successfully:", buffers);
 
+    // 🚀 **Step 1: Get or Create a GraphicsLayer**
+    let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
+    if (!bufferLayer) {
+        bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
+        state.jimuMapView.view.map.add(bufferLayer);
+    }
+
+    // 🚀 **Step 2: Convert Buffers into Graphics and Add Them to the Map**
+    bufferLayer.removeAll(); // Clear existing buffers before adding new ones
+
+    buffers.forEach((buffer, index) => {
+        const bufferGraphic = new Graphic({
+            geometry: buffer,
+            symbol: new SimpleFillSymbol({
+                color: [255, 0, 0, 0.3], // Red with transparency
+                outline: {
+                    color: [255, 0, 0],
+                    width: 1,
+                }
+            })
+        });
+
+        bufferLayer.add(bufferGraphic);
+        console.log(`✅ Buffer ${index + 1} added to map.`);
+    });
+
     setState({ ...state, isLoading: false, errorMessage: null });
   };
 
@@ -180,30 +209,12 @@ const Widget = (props: AllWidgetProps<IConfig>) => {
       <h1>Buffer Dasymetric Widget</h1>
       <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
 
-      <div style={{ marginTop: "10px" }}>
-        <h4>Enter Coordinates and Site Name</h4>
-        <TextInput
-          placeholder="Latitude"
-          value={state.latitude}
-          onChange={(e) => setState({ ...state, latitude: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <TextInput
-          placeholder="Longitude"
-          value={state.longitude}
-          onChange={(e) => setState({ ...state, longitude: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <TextInput
-          placeholder="Site Name"
-          value={state.siteName}
-          onChange={(e) => setState({ ...state, siteName: e.target.value })}
-          style={{ marginRight: "10px", width: "150px" }}
-        />
-        <Button onClick={processPoint} disabled={state.isLoading}>
-          {state.isLoading ? "Processing..." : "Buffer Coordinates"}
-        </Button>
-      </div>
+      <TextInput placeholder="Latitude" value={state.latitude} onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+      <TextInput placeholder="Longitude" value={state.longitude} onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+      <TextInput placeholder="Site Name" value={state.siteName} onChange={(e) => setState({ ...state, siteName: e.target.value })} />
+      <Button onClick={processPoint} disabled={state.isLoading}>
+        {state.isLoading ? "Processing..." : "Buffer Coordinates"}
+      </Button>
 
       {state.errorMessage && <Alert type="error" text={state.errorMessage} withIcon closable onClose={() => setState({ ...state, errorMessage: null })} />}
     </div>
