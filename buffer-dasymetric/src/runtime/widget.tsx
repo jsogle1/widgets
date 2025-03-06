@@ -160,8 +160,8 @@ const Widget = (props: AllWidgetProps<any>) => {
     setState({ ...state, isLoading: false, summaryStats });
   };
 
-  return (
-  <div className="widget-container" style={{ position: "relative" }}>
+ return (
+  <div className="widget-container">
     <h1>Dasymetric Population Tool</h1>
     <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
 
@@ -174,8 +174,8 @@ const Widget = (props: AllWidgetProps<any>) => {
 
     {state.errorMessage && <Alert type="error" text={state.errorMessage} />}
 
-    {/* ✅ Move Statistics Box inside the Map */}
-    {state.jimuMapView && (
+    {/* ✅ Now attaching this div directly inside the map view */}
+    {state.jimuMapView && state.jimuMapView.view.container && (
       <div
         style={{
           position: "absolute",
@@ -188,6 +188,12 @@ const Widget = (props: AllWidgetProps<any>) => {
           zIndex: 10, // Ensures it stays above the map
           opacity: 0.9, // Slight transparency to not obscure map too much
           maxWidth: "220px",
+          pointerEvents: "none" // Prevents blocking map interactions
+        }}
+        ref={(el) => {
+          if (el && state.jimuMapView) {
+            state.jimuMapView.view.container.appendChild(el); // ✅ Attaching stats box to the map
+          }
         }}
       >
         <h3>Statistics</h3>
@@ -198,6 +204,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     )}
   </div>
 );
+
 
 };
 
