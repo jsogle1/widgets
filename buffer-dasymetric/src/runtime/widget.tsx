@@ -31,6 +31,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     siteName: '',
     errorMessage: null as string | null,
     isLoading: false,
+    selectedCensusYear: '2010', // ✅ Default to 2010
     summaryStats: {} as { [key: string]: number }
   });
 
@@ -100,8 +101,9 @@ const processBuffer = async (point: Point) => {
   }
   bufferLayer.removeAll();
 
+const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
 const censusLayer = state.jimuMapView.view.map.allLayers.find(
-  (layer) => layer.title === "CensusBlocks2010"
+  (layer) => layer.title === censusLayerTitle
 ) as FeatureLayer;
 
 if (!censusLayer) {
@@ -192,6 +194,11 @@ if (allBufferGeometries.length > 0) {
         <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
         <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
         <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+        <Select value={state.selectedCensusYear} onChange={(e) => setState({ ...state, selectedCensusYear: e.target.value })}>
+          <Option value="1990">1990 Census</Option>
+          <Option value="2000">2000 Census</Option>
+          <Option value="2010">2010 Census</Option>
+        </Select>
         <Button onClick={processPoint}>Process</Button>
       </div>
   
