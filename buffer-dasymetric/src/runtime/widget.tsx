@@ -109,8 +109,6 @@ const Widget = (props: AllWidgetProps<any>) => {
       query.outFields = ["TOTALPOP", "ACRES"];
 
       const results = await censusLayer.queryFeatures(query);
-      console.log(`📊 Census Features Found in 0-0.25 mile buffer:`, results.features.length);
-
       results.features.forEach(feature => {
         const clippedFeature = geometryEngine.intersect(feature.geometry, firstBuffer);
         if (!clippedFeature) return;
@@ -160,7 +158,21 @@ const Widget = (props: AllWidgetProps<any>) => {
     setState({ ...state, isLoading: false, summaryStats });
   };
 
-  return <div><h1>Dasymetric Population Tool</h1></div>;
+  return (
+    <div className="widget-container">
+      <h1>Dasymetric Population Tool</h1>
+      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+      
+      <div className="input-container">
+        <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
+        <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+        <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+        <Button onClick={processPoint}>Process</Button>
+      </div>
+
+      {state.errorMessage && <Alert type="error" text={state.errorMessage} />}
+    </div>
+  );
 };
 
 export default Widget;
