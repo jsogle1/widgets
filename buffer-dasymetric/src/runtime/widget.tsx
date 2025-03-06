@@ -9,19 +9,15 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
-// ✅ **Standardized Buffer Distances**
-const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];  
-const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map(miles => miles * 1609.34);
-
-// Colors for each buffer
-const BUFFER_COLORS = [
-  [255, 0, 0, 0.4],  // Red
-  [255, 165, 0, 0.4], // Orange
-  [255, 255, 0, 0.4], // Yellow
-  [0, 128, 0, 0.4],   // Green
-  [0, 0, 255, 0.4],   // Blue
-  [128, 0, 128, 0.4]  // Purple
-];
+// ✅ Define Choropleth Color Function
+const getChoroplethColor = (adjPop: number) => {
+  if (adjPop === 0) return [255, 255, 255, 0.8]; // White
+  if (adjPop <= 100) return [255, 235, 175, 0.8]; // Light Orange
+  if (adjPop <= 1000) return [255, 170, 0, 0.8]; // Orange
+  if (adjPop <= 2500) return [230, 76, 0, 0.8]; // Dark Orange
+  if (adjPop <= 5000) return [168, 0, 0, 0.8]; // Red
+  return [115, 0, 76, 0.8]; // Dark Purple
+};
 
 const Widget = (props: AllWidgetProps<any>) => {
   const [state, setState] = React.useState({
@@ -90,15 +86,14 @@ const Widget = (props: AllWidgetProps<any>) => {
     }
     bufferLayer.removeAll();
 
-    const censusLayer = state.jimuMapView.view.map.allLayers.find(layer => layer.title === "CensusBlocks2010") as FeatureLayer;
+    let censusLayer = state.jimuMapView.view.map.findLayerById("census-layer") as GraphicsLayer;
     if (!censusLayer) {
-      setState({ ...state, errorMessage: "Census layer not found.", isLoading: false });
-      return;
+      censusLayer = new GraphicsLayer({ id: "census-layer" });
+      state.jimuMapView.view.map.add(censusLayer);
     }
+    censusLayer.removeAll();
 
-    let summaryStats: { [key: string]: number } = {
-      "0-0.25 miles": 0, "0.25-0.5 miles": 0, "0.5-1 miles": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0
-    };
+    let summaryStats: { [key: string]: number } = {};
 
     let allBufferGeometries: __esri.Geometry[] = [];
 
@@ -110,6 +105,17 @@ const Widget = (props: AllWidgetProps<any>) => {
 
       allBufferGeometries.push(ringBuffer);
 
+      // ✅ Add Buffer Ring (Always Purple)
+      const bufferGraphic = new Graphic({
+        geometry: ringBuffer,
+        symbol: new SimpleFillSymbol({
+          color: [130, 0, 160, 0.3], // Purple Fill (Transparent)
+          outline: { color: [130, 0, 160], width: 2 } // Bold Purple Outline
+        }),
+      });
+      bufferLayer.add(bufferGraphic);
+
+      // ✅ Query Census Data for the Ring
       const query = censusLayer.createQuery();
       query.geometry = ringBuffer;
       query.spatialRelationship = "intersects";
@@ -128,84 +134,38 @@ const Widget = (props: AllWidgetProps<any>) => {
         const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
 
         const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
-        summaryStats[ringLabel] += adjPop;
+        summaryStats[ringLabel] = (summaryStats[ringLabel] || 0) + adjPop;
 
-        const bufferGraphic = new Graphic({
+        // ✅ Create Census Block Choropleth Graphic
+        const censusGraphic = new Graphic({
           geometry: clippedFeature,
           symbol: new SimpleFillSymbol({
-            color: BUFFER_COLORS[index],
-            outline: { color: [0, 0, 0], width: 1 }
+            color: getChoroplethColor(adjPop),
+            outline: { color: [0, 0, 0], width: 1 } // Black outline for visibility
           }),
-          attributes: {
-            ACRES2: clippedAcres,
-            ADJ_POP: adjPop
-          },
-          popupTemplate: {
-            title: `Census Block Data`,
-            content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}`
-          }
+          attributes: { ADJ_POP: adjPop },
         });
 
-        bufferLayer.add(bufferGraphic);
+        censusLayer.add(censusGraphic);
       });
-    }
-
-    if (allBufferGeometries.length > 0) {
-      const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
-      if (bufferExtent) {
-        state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err => console.error("Zoom error:", err));
-      }
     }
 
     setState({ ...state, isLoading: false, summaryStats });
   };
 
- return (
-  <div className="widget-container">
-    <h1>Dasymetric Population Tool</h1>
-    <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+  return (
+    <div className="widget-container">
+      <h1>Dasymetric Population Tool</h1>
+      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
 
-    <div className="input-container">
-      <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
-      <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
-      <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
-      <Button onClick={processPoint}>Process</Button>
-    </div>
-
-    {state.errorMessage && <Alert type="error" text={state.errorMessage} />}
-
-    {/* ✅ Now attaching this div directly inside the map view */}
-    {state.jimuMapView && state.jimuMapView.view.container && (
-      <div
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          background: "white",
-          padding: "10px",
-          border: "1px solid black",
-          boxShadow: "2px 2px 10px rgba(0,0,0,0.2)",
-          zIndex: 10, // Ensures it stays above the map
-          opacity: 0.9, // Slight transparency to not obscure map too much
-          maxWidth: "220px",
-          pointerEvents: "none" // Prevents blocking map interactions
-        }}
-        ref={(el) => {
-          if (el && state.jimuMapView) {
-            state.jimuMapView.view.container.appendChild(el); // ✅ Attaching stats box to the map
-          }
-        }}
-      >
+      <div className="statistics-box">
         <h3>Statistics</h3>
         {Object.entries(state.summaryStats).map(([buffer, adjPop]) => (
           <p key={buffer}><b>{buffer}:</b> {adjPop}</p>
         ))}
       </div>
-    )}
-  </div>
-);
-
-
+    </div>
+  );
 };
 
 export default Widget;
