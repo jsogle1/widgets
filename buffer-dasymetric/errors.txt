@@ -1,16 +1,7 @@
 42.1539722222
 -72.3712222222
 
-ReferenceError: Select is not defined
-    at Widget (widget.tsx:197:10)
-    at xu (react-dom.js:2:63076)
-    at Ei (react-dom.js:2:119931)
-    at ks (react-dom.js:2:109083)
-    at ys (react-dom.js:2:109011)
-    at vs (react-dom.js:2:108874)
-    at us (react-dom.js:2:105681)
-    at as (react-dom.js:2:104233)
-    at S (react-dom.js:2:130624)
-    at MessagePort.T (react-dom.js:2:131156)
-
-import { TextInput, Button, Alert, Select, Option } from 'jimu-ui';
+widget.js:137 Uncaught (in promise) TypeError: Cannot read properties of null (reading 'querySelector')
+    at widget.js:137:998
+    at Generator.next (<anonymous>)
+    at r (widget.js:134:2781)
