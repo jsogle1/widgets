@@ -101,22 +101,17 @@ const processBuffer = async (point: Point) => {
   }
   bufferLayer.removeAll();
 
-const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
-const censusLayer = state.jimuMapView.view.map.allLayers.find(
-  (layer) => layer.title === censusLayerTitle
-) as FeatureLayer;
-console.log("Selected Census Layer:", censusLayerTitle, censusLayer);
-if (!censusLayer) {
-  setState({
-    ...state,
-    errorMessage: "Census layer not found. Ensure 'CensusBlocks2010' is added to the map.",
-    isLoading: false
-  });
-  return;
-}
+  const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
+  const censusLayer = state.jimuMapView.view.map.allLayers.find(
+    (layer) => layer.title === censusLayerTitle
+  ) as FeatureLayer;
+
+  if (!censusLayer) {
+    setState({ ...state, errorMessage: `Census layer (${censusLayerTitle}) not found.`, isLoading: false });
+    return;
+  }
 
   let summaryStats: { [key: string]: number } = {};
-
   let allBufferGeometries: __esri.Geometry[] = [];
 
   for (let index = 0; index < BUFFER_DISTANCES_METERS.length; index++) {
@@ -130,7 +125,14 @@ if (!censusLayer) {
     const query = censusLayer.createQuery();
     query.geometry = ringBuffer;
     query.spatialRelationship = "intersects";
-    query.outFields = ["TOTALPOP", "ACRES", "POP_DEN"]; // ✅ Added POP_DEN field for classification
+    // 🛠️ Dynamically set the population field based on the selected year
+    let popField = "TOTALPOP"; // Default for 1990 & 2010
+    if (state.selectedCensusYear === "2000") {
+      popField = "POP100";  // 🔧 Corrected field name for Census 2000
+    }
+    
+    // ✅ Now query the correct field dynamically
+    query.outFields = [popField, "ACRES", "POP_DEN"];
 
     const results = await censusLayer.queryFeatures(query);
     results.features.forEach(feature => {
@@ -141,100 +143,37 @@ if (!censusLayer) {
       let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
       if (!originalAcres || originalAcres <= 0 || isNaN(originalAcres)) return;
 
-      const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
+      const ratio = clippedAcres / originalAcres;
       const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
-
-      const popDensity = feature.attributes?.POP_DEN || 0; // ✅ Use existing POP_DEN field
-
+      const popDensity = feature.attributes?.POP_DEN || 0;
       const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
       summaryStats[ringLabel] = (summaryStats[ringLabel] || 0) + adjPop;
 
-      // ✅ Symbolizing census block using Population Density
       const censusGraphic = new Graphic({
         geometry: clippedFeature,
         symbol: new SimpleFillSymbol({
           color: getChoroplethColor(popDensity),
-          outline: { color: [0, 0, 0], width: 1 } // Black outline for visibility
+          outline: { color: [0, 0, 0], width: 1 }
         }),
-        attributes: {
-          ACRES2: clippedAcres,
-          POP_DEN: popDensity, // ✅ Displaying pop density instead of ADJ_POP
-        },
-        popupTemplate: {
-          title: `Census Block Data`,
-          content: `
-            <b>ACRES2:</b> ${clippedAcres.toFixed(2)}<br>
-            <b>POP_DEN:</b> ${popDensity}
-          `
-        }
+        attributes: { ACRES2: clippedAcres, POP_DEN: popDensity }
       });
 
       bufferLayer.add(censusGraphic);
     });
   }
-// ✅ Ensure map zooms to the full extent of buffers
-if (allBufferGeometries.length > 0) {
-  const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
-  if (bufferExtent) {
-    state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err =>
-      console.error("Zoom error:", err)
-    );
-  }
-}
 
   setState({ ...state, isLoading: false, summaryStats });
 };
 
-  return (
-    <div className="widget-container">
-      <h1>Dasymetric Population Tool</h1>
-      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
-  
-      <div className="input-container">
-        <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
-        <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
-        <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
-        <Select value={state.selectedCensusYear} onChange={(e) => setState({ ...state, selectedCensusYear: e.target.value })}>
-          <Option value="1990">1990 Census</Option>
-          <Option value="2000">2000 Census</Option>
-          <Option value="2010">2010 Census</Option>
-        </Select>
-        <Button onClick={processPoint}>Process</Button>
-      </div>
-  
-      {state.errorMessage && <Alert type="error" text={state.errorMessage} />}
-  
-      {/* ✅ Now attaching this div directly inside the map view */}
-      {state.jimuMapView && state.jimuMapView.view.container && (
-        <div
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            background: "white",
-            padding: "10px",
-            border: "1px solid black",
-            boxShadow: "2px 2px 10px rgba(0,0,0,0.2)",
-            zIndex: 10, // Ensures it stays above the map
-            opacity: 0.9, // Slight transparency to not obscure map too much
-            maxWidth: "220px",
-            pointerEvents: "none" // Prevents blocking map interactions
-          }}
-          ref={(el) => {
-            if (el && state.jimuMapView) {
-              state.jimuMapView.view.container.appendChild(el); // ✅ Attaching stats box to the map
-            }
-          }}
-        >
-          <h3>Statistics</h3>
-          {Object.entries(state.summaryStats).map(([buffer, adjPop]) => (
-            <p key={buffer}><b>{buffer}:</b> {adjPop}</p>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-};
+return (
+  <div className="widget-container">
+    <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+    <h1>Dasymetric Population Tool</h1>
+    <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+    <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+    <Button onClick={processPoint}>Process</Button>
+  </div>
+);
 
 export default Widget;
+
