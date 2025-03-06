@@ -112,7 +112,6 @@ if (!censusLayer) {
   });
   return;
 }
-  censusLayer.removeAll();
 
   let summaryStats: { [key: string]: number } = {};
 
