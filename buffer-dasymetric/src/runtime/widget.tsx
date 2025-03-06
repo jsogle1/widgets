@@ -167,7 +167,7 @@ if (!censusLayer) {
         }
       });
 
-      censusLayer.add(censusGraphic);
+      bufferLayer.add(censusGraphic);
     });
   }
 
