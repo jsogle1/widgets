@@ -67,98 +67,106 @@ const Widget = (props: AllWidgetProps<any>) => {
     await processBuffer(point);
   };
 
-  const processBuffer = async (point: Point) => {
-    if (!state.jimuMapView) {
-      setState({ ...state, errorMessage: "Map view not loaded." });
-      return;
-    }
+  // ✅ Define Choropleth Color Function (Now using POP_DEN)
+const getChoroplethColor = (popDensity: number) => {
+  if (popDensity === 0) return [255, 255, 255, 0.8]; // White
+  if (popDensity <= 100) return [255, 235, 175, 0.8]; // Light Orange
+  if (popDensity <= 1000) return [255, 170, 0, 0.8]; // Orange
+  if (popDensity <= 2500) return [230, 76, 0, 0.8]; // Dark Orange
+  if (popDensity <= 5000) return [168, 0, 0, 0.8]; // Red
+  return [115, 0, 76, 0.8]; // Dark Purple
+};
 
-    setState({ ...state, isLoading: true, errorMessage: null });
-    await projection.load();
+const processBuffer = async (point: Point) => {
+  if (!state.jimuMapView) {
+    setState({ ...state, errorMessage: "Map view not loaded." });
+    return;
+  }
 
-    const mapSR = state.jimuMapView.view.spatialReference;
-    const projectedPoint = projection.project(point, mapSR) as Point;
-    if (!projectedPoint) {
-      setState({ ...state, errorMessage: "Projection failed.", isLoading: false });
-      return;
-    }
+  setState({ ...state, isLoading: true, errorMessage: null });
+  await projection.load();
 
-    let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
-    if (!bufferLayer) {
-      bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
-      state.jimuMapView.view.map.add(bufferLayer);
-    }
-    bufferLayer.removeAll();
+  const mapSR = state.jimuMapView.view.spatialReference;
+  const projectedPoint = projection.project(point, mapSR) as Point;
+  if (!projectedPoint) {
+    setState({ ...state, errorMessage: "Projection failed.", isLoading: false });
+    return;
+  }
 
-    const censusLayer = state.jimuMapView.view.map.allLayers.find(layer => layer.title === "CensusBlocks2010") as FeatureLayer;
-    if (!censusLayer) {
-      setState({ ...state, errorMessage: "Census layer not found.", isLoading: false });
-      return;
-    }
+  let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
+  if (!bufferLayer) {
+    bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
+    state.jimuMapView.view.map.add(bufferLayer);
+  }
+  bufferLayer.removeAll();
 
-    let summaryStats: { [key: string]: number } = {
-      "0-0.25 miles": 0, "0.25-0.5 miles": 0, "0.5-1 miles": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0
-    };
+  let censusLayer = state.jimuMapView.view.map.findLayerById("census-layer") as GraphicsLayer;
+  if (!censusLayer) {
+    censusLayer = new GraphicsLayer({ id: "census-layer" });
+    state.jimuMapView.view.map.add(censusLayer);
+  }
+  censusLayer.removeAll();
 
-    let allBufferGeometries: __esri.Geometry[] = [];
+  let summaryStats: { [key: string]: number } = {};
 
-    for (let index = 0; index < BUFFER_DISTANCES_METERS.length; index++) {
-      const outerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
-      const innerBuffer = index > 0 ? geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index - 1], "meters") : null;
-      const ringBuffer = innerBuffer ? geometryEngine.difference(outerBuffer, innerBuffer) : outerBuffer;
-      if (!ringBuffer) continue;
+  let allBufferGeometries: __esri.Geometry[] = [];
 
-      allBufferGeometries.push(ringBuffer);
+  for (let index = 0; index < BUFFER_DISTANCES_METERS.length; index++) {
+    const outerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
+    const innerBuffer = index > 0 ? geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index - 1], "meters") : null;
+    const ringBuffer = innerBuffer ? geometryEngine.difference(outerBuffer, innerBuffer) : outerBuffer;
+    if (!ringBuffer) continue;
 
-      const query = censusLayer.createQuery();
-      query.geometry = ringBuffer;
-      query.spatialRelationship = "intersects";
-      query.outFields = ["TOTALPOP", "ACRES"];
+    allBufferGeometries.push(ringBuffer);
 
-      const results = await censusLayer.queryFeatures(query);
-      results.features.forEach(feature => {
-        const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
-        if (!clippedFeature) return;
+    const query = censusLayer.createQuery();
+    query.geometry = ringBuffer;
+    query.spatialRelationship = "intersects";
+    query.outFields = ["TOTALPOP", "ACRES", "POP_DEN"]; // ✅ Added POP_DEN field for classification
 
-        let originalAcres = feature.attributes?.ACRES;
-        let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
-        if (!originalAcres || originalAcres <= 0 || isNaN(originalAcres)) return;
+    const results = await censusLayer.queryFeatures(query);
+    results.features.forEach(feature => {
+      const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
+      if (!clippedFeature) return;
 
-        const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
-        const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
+      let originalAcres = feature.attributes?.ACRES;
+      let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
+      if (!originalAcres || originalAcres <= 0 || isNaN(originalAcres)) return;
 
-        const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
-        summaryStats[ringLabel] += adjPop;
+      const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
+      const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
 
-        const bufferGraphic = new Graphic({
-          geometry: clippedFeature,
-          symbol: new SimpleFillSymbol({
-            color: BUFFER_COLORS[index],
-            outline: { color: [0, 0, 0], width: 1 }
-          }),
-          attributes: {
-            ACRES2: clippedAcres,
-            ADJ_POP: adjPop
-          },
-          popupTemplate: {
-            title: `Census Block Data`,
-            content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}`
-          }
-        });
+      const popDensity = feature.attributes?.POP_DEN || 0; // ✅ Use existing POP_DEN field
 
-        bufferLayer.add(bufferGraphic);
+      const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
+      summaryStats[ringLabel] = (summaryStats[ringLabel] || 0) + adjPop;
+
+      // ✅ Symbolizing census block using Population Density
+      const censusGraphic = new Graphic({
+        geometry: clippedFeature,
+        symbol: new SimpleFillSymbol({
+          color: getChoroplethColor(popDensity),
+          outline: { color: [0, 0, 0], width: 1 } // Black outline for visibility
+        }),
+        attributes: {
+          ACRES2: clippedAcres,
+          POP_DEN: popDensity, // ✅ Displaying pop density instead of ADJ_POP
+        },
+        popupTemplate: {
+          title: `Census Block Data`,
+          content: `
+            <b>ACRES2:</b> ${clippedAcres.toFixed(2)}<br>
+            <b>POP_DEN:</b> ${popDensity}
+          `
+        }
       });
-    }
 
-    if (allBufferGeometries.length > 0) {
-      const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
-      if (bufferExtent) {
-        state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err => console.error("Zoom error:", err));
-      }
-    }
+      censusLayer.add(censusGraphic);
+    });
+  }
 
-    setState({ ...state, isLoading: false, summaryStats });
-  };
+  setState({ ...state, isLoading: false, summaryStats });
+};
 
   return (
     <div className="widget-container">
