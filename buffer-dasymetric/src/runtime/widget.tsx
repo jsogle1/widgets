@@ -9,8 +9,8 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
-// ✅ **Corrected Buffer Distances**
-const BUFFER_DISTANCES_MILES = [0, 0.25, 0.5, 1, 2, 3, 4];  // 🚨 Removed "5" miles, added "0"
+// ✅ **Corrected Buffer Distances (Removed 0)**
+const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];  
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map(miles => miles * 1609.34);
 
 // Colors for each buffer
@@ -127,14 +127,14 @@ const Widget = (props: AllWidgetProps<any>) => {
         if (!originalAcres || originalAcres <= 0) return;
 
         const ratio = clippedAcres / originalAcres;
-        const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
+        const adjPop = isNaN(ratio) ? 0 : Math.round(ratio * feature.attributes.TOTALPOP);
         summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
 
         const clippedGraphic = new Graphic({
           geometry: clippedFeature,
           attributes: { ACRES2: clippedAcres, ADJ_POP: adjPop },
           symbol: new SimpleFillSymbol({
-            color: BUFFER_COLORS[index - 1], // 🔥 Adjusted for correct ring colors
+            color: BUFFER_COLORS[index - 1], 
             outline: { color: [0, 0, 0], width: 1 }
           }),
           popupTemplate: {
