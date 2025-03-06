@@ -170,6 +170,15 @@ if (!censusLayer) {
       bufferLayer.add(censusGraphic);
     });
   }
+// ✅ Ensure map zooms to the full extent of buffers
+if (allBufferGeometries.length > 0) {
+  const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
+  if (bufferExtent) {
+    state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err =>
+      console.error("Zoom error:", err)
+    );
+  }
+}
 
   setState({ ...state, isLoading: false, summaryStats });
 };
