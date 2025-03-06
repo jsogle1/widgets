@@ -105,7 +105,7 @@ const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
 const censusLayer = state.jimuMapView.view.map.allLayers.find(
   (layer) => layer.title === censusLayerTitle
 ) as FeatureLayer;
-
+console.log("Selected Census Layer:", censusLayerTitle, censusLayer);
 if (!censusLayer) {
   setState({
     ...state,
