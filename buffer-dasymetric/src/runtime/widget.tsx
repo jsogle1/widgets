@@ -100,11 +100,18 @@ const processBuffer = async (point: Point) => {
   }
   bufferLayer.removeAll();
 
-  let censusLayer = state.jimuMapView.view.map.findLayerById("census-layer") as GraphicsLayer;
-  if (!censusLayer) {
-    censusLayer = new GraphicsLayer({ id: "census-layer" });
-    state.jimuMapView.view.map.add(censusLayer);
-  }
+const censusLayer = state.jimuMapView.view.map.allLayers.find(
+  (layer) => layer.title === "CensusBlocks2010"
+) as FeatureLayer;
+
+if (!censusLayer) {
+  setState({
+    ...state,
+    errorMessage: "Census layer not found. Ensure 'CensusBlocks2010' is added to the map.",
+    isLoading: false
+  });
+  return;
+}
   censusLayer.removeAll();
 
   let summaryStats: { [key: string]: number } = {};
