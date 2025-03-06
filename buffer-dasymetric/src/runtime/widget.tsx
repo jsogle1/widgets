@@ -9,7 +9,7 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
-// ✅ **Corrected Buffer Distances (Removed 0)**
+// ✅ **Corrected Buffer Distances**
 const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];  
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map(miles => miles * 1609.34);
 
@@ -120,15 +120,28 @@ const Widget = (props: AllWidgetProps<any>) => {
         const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
         if (!clippedFeature) return;
 
-        let originalAcres = feature.attributes.ACRES;
+        let originalAcres = feature.attributes?.ACRES;
         let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
 
+        // 🚨 **Fix: Prevent invalid area calculations**
+        if (!originalAcres || originalAcres <= 0 || isNaN(originalAcres)) {
+          console.warn(`⚠ Skipping feature due to invalid ACRES:`, feature.attributes);
+          return;
+        }
         if (clippedAcres > originalAcres) clippedAcres = originalAcres;
-        if (!originalAcres || originalAcres <= 0) return;
 
-        const ratio = clippedAcres / originalAcres;
-        const adjPop = isNaN(ratio) ? 0 : Math.round(ratio * feature.attributes.TOTALPOP);
-        summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
+        // ✅ **Fix: Prevent NaN in ratio calculation**
+        const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
+        const adjPop = isNaN(ratio) ? 0 : Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
+
+        console.log(`✅ Ring: ${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`);
+        console.log(`   Original ACRES: ${originalAcres}, Clipped ACRES: ${clippedAcres}`);
+        console.log(`   Ratio: ${ratio.toFixed(4)}, Adjusted Population: ${adjPop}`);
+
+        // ✅ **Ensure summaryStats uses consistent key format**
+        const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`;
+        if (!summaryStats[ringLabel]) summaryStats[ringLabel] = 0;
+        summaryStats[ringLabel] += adjPop;
 
         const clippedGraphic = new Graphic({
           geometry: clippedFeature,
