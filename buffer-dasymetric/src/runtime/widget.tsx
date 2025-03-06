@@ -4,7 +4,7 @@ import * as geometryEngine from '@arcgis/core/geometry/geometryEngine';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import Point from '@arcgis/core/geometry/Point';
 import * as projection from '@arcgis/core/geometry/projection';
-import { TextInput, Button, Alert } from 'jimu-ui';
+import { TextInput, Button, Alert, Select, Option } from 'jimu-ui';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
