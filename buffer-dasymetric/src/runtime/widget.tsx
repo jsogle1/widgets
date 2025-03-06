@@ -8,11 +8,10 @@ import { TextInput, Button, Alert } from 'jimu-ui';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
-import Query from '@arcgis/core/rest/support/Query';
 
 // Convert miles to meters (1 mile = 1609.34 meters)
 const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4, 5];
-const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map((miles) => miles * 1609.34);
+const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map(miles => miles * 1609.34);
 
 // Colors for each buffer
 const BUFFER_COLORS = [
@@ -32,6 +31,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     siteName: '',
     errorMessage: null as string | null,
     isLoading: false,
+    summaryStats: {} as { [key: string]: number }
   });
 
   const activeViewChangeHandler = (jmv: JimuMapView) => {
@@ -100,81 +100,55 @@ const Widget = (props: AllWidgetProps<any>) => {
       "¼-½ mile": 0, "½-1 mile": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0, "4-5 miles": 0
     };
 
-    BUFFER_DISTANCES_METERS.forEach(async (distance, index) => {
-      try {
-        const buffer = geometryEngine.buffer(projectedPoint, distance, "meters");
-        if (!buffer) {
-          console.error(`❌ Buffer creation failed for ${BUFFER_DISTANCES_MILES[index]} miles.`);
-          return;
-        }
+    for (let index = 1; index < BUFFER_DISTANCES_METERS.length; index++) {
+      const outerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
+      const innerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index - 1], "meters");
+      if (!outerBuffer || !innerBuffer) continue;
 
-        const query = censusLayer.createQuery();
-        query.geometry = buffer;
-        query.spatialRelationship = "intersects";
-        query.outFields = ["TOTALPOP", "ACRES"];
+      const ringBuffer = geometryEngine.difference(outerBuffer, innerBuffer);
+      if (!ringBuffer) continue;
 
-        const results = await censusLayer.queryFeatures(query);
-        console.log(`📊 Census Features Found in ${BUFFER_DISTANCES_MILES[index]} mile buffer:`, results.features.length);
+      const query = censusLayer.createQuery();
+      query.geometry = ringBuffer;
+      query.spatialRelationship = "intersects";
+      query.outFields = ["TOTALPOP", "ACRES"];
 
-        results.features.forEach(feature => {
-          const clippedFeature = geometryEngine.intersect(feature.geometry, buffer);
-          if (!clippedFeature) {
-            console.warn(`⚠ No clipped geometry for feature in buffer ${BUFFER_DISTANCES_MILES[index]} miles.`);
-            return;
+      const results = await censusLayer.queryFeatures(query);
+      console.log(`📊 Census Features Found in ${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} mile buffer:`, results.features.length);
+
+      results.features.forEach(feature => {
+        const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
+        if (!clippedFeature) return;
+
+        let originalAcres = feature.attributes.ACRES;
+        let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
+
+        if (clippedAcres > originalAcres) clippedAcres = originalAcres;
+        if (!originalAcres || originalAcres <= 0) return;
+
+        const ratio = clippedAcres / originalAcres;
+        const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
+        summaryStats[`${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`] += adjPop;
+
+        const clippedGraphic = new Graphic({
+          geometry: clippedFeature,
+          attributes: { ACRES2: clippedAcres, ADJ_POP: adjPop },
+          symbol: new SimpleFillSymbol({
+            color: BUFFER_COLORS[index],
+            outline: { color: [0, 0, 0], width: 1 }
+          }),
+          popupTemplate: {
+            title: `Census Block Data`,
+            content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}`
           }
-
-          let originalAcres = feature.attributes.ACRES;
-          let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
-
-          // 🚨 **Fix: Prevent Clipped Acres from Exceeding Original Acres**
-          if (clippedAcres > originalAcres) {
-            console.warn(`⚠ Clipped Acres (${clippedAcres.toFixed(4)}) > Original Acres (${originalAcres.toFixed(4)}) - Adjusting.`);
-            clippedAcres = originalAcres;
-          }
-
-          // 🚨 **Fix: Ensure Original Acres is Valid Before Division**
-          if (!originalAcres || originalAcres <= 0) {
-            console.warn(`⚠ Original Acres is invalid (${originalAcres}), skipping calculation.`);
-            return;
-          }
-
-          // ✅ **Calculate the ratio AFTER fixing float issues**
-          const ratio = clippedAcres / originalAcres;
-          const adjPop = Math.round(ratio * feature.attributes.TOTALPOP);
-
-          console.log(`✅ ACRES2: ${clippedAcres.toFixed(4)}, Ratio: ${ratio.toFixed(4)}, ADJ_POP: ${adjPop}`);
-
-          // Create Graphic with Fixed Values
-          const clippedGraphic = new Graphic({
-            geometry: clippedFeature,
-            attributes: {
-              ACRES2: clippedAcres.toFixed(4),
-              PCT_ACRES: (ratio * 100).toFixed(2) + "%",
-              ADJ_POP: adjPop,
-            },
-            symbol: new SimpleFillSymbol({
-              color: BUFFER_COLORS[index],
-              outline: { color: [0, 0, 0], width: 1 }
-            }),
-            popupTemplate: {
-              title: `Census Block Data`,
-              content: `
-                <b>Original Acres:</b> ${feature.attributes.ACRES} <br>
-                <b>Clipped Acres (ACRES2):</b> ${clippedAcres.toFixed(4)} <br>
-                <b>Percentage Retained:</b> ${(ratio * 100).toFixed(2)}% <br>
-                <b>Adjusted Population (ADJ_POP):</b> ${adjPop}
-              `
-            }
-          });
-
-          bufferLayer.add(clippedGraphic);
         });
-      } catch (error) {
-        console.error(`❌ Error processing buffer ${BUFFER_DISTANCES_MILES[index]} miles:`, error);
-      }
-    });
 
-    setState({ ...state, isLoading: false });
+        bufferLayer.add(clippedGraphic);
+      });
+    }
+
+    console.log(`📊 Dasymetric Summary for ${state.siteName}:`, summaryStats);
+    setState({ ...state, isLoading: false, summaryStats });
   };
 
   return (
