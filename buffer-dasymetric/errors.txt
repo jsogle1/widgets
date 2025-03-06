@@ -2,15 +2,15 @@
 -72.3712222222
 
 
-0-.25 miles
+﻿0-.25 miles
 : 
 0
 0.5-1 miles
 : 
-NaN
+188
 0.25-0.5 miles
 : 
-NaN
+42
 1-2 miles
 : 
 1236
@@ -26,7 +26,3 @@ NaN
 .25-.5 miles
 : 
 0
-[[Prototype]]
-: 
-Object
-﻿
