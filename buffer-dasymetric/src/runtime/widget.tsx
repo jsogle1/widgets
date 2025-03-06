@@ -9,8 +9,8 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
-// Convert miles to meters (1 mile = 1609.34 meters)
-const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4, 5];
+// ✅ **Corrected Buffer Distances**
+const BUFFER_DISTANCES_MILES = [0, 0.25, 0.5, 1, 2, 3, 4];  // 🚨 Removed "5" miles, added "0"
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map(miles => miles * 1609.34);
 
 // Colors for each buffer
@@ -97,7 +97,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     }
 
     let summaryStats: { [key: string]: number } = {
-      "¼-½ mile": 0, "½-1 mile": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0, "4-5 miles": 0
+      "0-.25 miles": 0, ".25-.5 miles": 0, ".5-1 miles": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0
     };
 
     for (let index = 1; index < BUFFER_DISTANCES_METERS.length; index++) {
@@ -134,7 +134,7 @@ const Widget = (props: AllWidgetProps<any>) => {
           geometry: clippedFeature,
           attributes: { ACRES2: clippedAcres, ADJ_POP: adjPop },
           symbol: new SimpleFillSymbol({
-            color: BUFFER_COLORS[index],
+            color: BUFFER_COLORS[index - 1], // 🔥 Adjusted for correct ring colors
             outline: { color: [0, 0, 0], width: 1 }
           }),
           popupTemplate: {
