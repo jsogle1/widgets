@@ -1,28 +1,9 @@
 42.1539722222
 -72.3712222222
 
-
-﻿0-.25 miles
-: 
-0
-0.5-1 miles
-: 
-188
-0.25-0.5 miles
-: 
-42
-1-2 miles
-: 
-1236
-2-3 miles
-: 
-4918
-3-4 miles
-: 
-5461
-.5-1 miles
-: 
-0
-.25-.5 miles
-: 
-0
+widget.tsx:170 Uncaught (in promise) TypeError: censusLayer.add is not a function
+    at widget.tsx:170:19
+    at Array.forEach (<anonymous>)
+    at widget.tsx:134:22
+    at Generator.next (<anonymous>)
+    at fulfilled (set-public-path.ts:7:52)
