@@ -161,20 +161,21 @@ const Widget = (props: AllWidgetProps<any>) => {
   };
 
   return (
-    <div className="widget-container">
-      <h1>Dasymetric Population Tool</h1>
-      <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
+  <div className="widget-container" style={{ position: "relative" }}>
+    <h1>Dasymetric Population Tool</h1>
+    <JimuMapViewComponent useMapWidgetId="widget_6" onActiveViewChange={activeViewChangeHandler} />
 
-      <div className="input-container">
-        <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
-        <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
-        <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
-        <Button onClick={processPoint}>Process</Button>
-      </div>
+    <div className="input-container">
+      <TextInput placeholder="Site Name" onChange={(e) => setState({ ...state, siteName: e.target.value })} />
+      <TextInput placeholder="Latitude" onChange={(e) => setState({ ...state, latitude: e.target.value })} />
+      <TextInput placeholder="Longitude" onChange={(e) => setState({ ...state, longitude: e.target.value })} />
+      <Button onClick={processPoint}>Process</Button>
+    </div>
 
-      {state.errorMessage && <Alert type="error" text={state.errorMessage} />}
+    {state.errorMessage && <Alert type="error" text={state.errorMessage} />}
 
-      {/* ✅ White Box in Upper Right for Statistics */}
+    {/* ✅ Move Statistics Box inside the Map */}
+    {state.jimuMapView && (
       <div
         style={{
           position: "absolute",
@@ -184,7 +185,9 @@ const Widget = (props: AllWidgetProps<any>) => {
           padding: "10px",
           border: "1px solid black",
           boxShadow: "2px 2px 10px rgba(0,0,0,0.2)",
-          maxWidth: "200px"
+          zIndex: 10, // Ensures it stays above the map
+          opacity: 0.9, // Slight transparency to not obscure map too much
+          maxWidth: "220px",
         }}
       >
         <h3>Statistics</h3>
@@ -192,8 +195,10 @@ const Widget = (props: AllWidgetProps<any>) => {
           <p key={buffer}><b>{buffer}:</b> {adjPop}</p>
         ))}
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
+
 };
 
 export default Widget;
