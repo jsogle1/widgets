@@ -9,8 +9,8 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
 
-// ✅ **Corrected Buffer Distances**
-const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];  
+// ✅ **Standardized Buffer Distances**
+const BUFFER_DISTANCES_MILES = [0, 0.25, 0.5, 1, 2, 3, 4];  
 const BUFFER_DISTANCES_METERS = BUFFER_DISTANCES_MILES.map(miles => miles * 1609.34);
 
 // Colors for each buffer
@@ -97,7 +97,7 @@ const Widget = (props: AllWidgetProps<any>) => {
     }
 
     let summaryStats: { [key: string]: number } = {
-      "0-.25 miles": 0, ".25-.5 miles": 0, ".5-1 miles": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0
+      "0-0.25 miles": 0, "0.25-0.5 miles": 0, "0.5-1 miles": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0
     };
 
     for (let index = 1; index < BUFFER_DISTANCES_METERS.length; index++) {
@@ -138,9 +138,8 @@ const Widget = (props: AllWidgetProps<any>) => {
         console.log(`   Original ACRES: ${originalAcres}, Clipped ACRES: ${clippedAcres}`);
         console.log(`   Ratio: ${ratio.toFixed(4)}, Adjusted Population: ${adjPop}`);
 
-        // ✅ **Ensure summaryStats uses consistent key format**
+        // ✅ **Ensure summaryStats uses correct and consistent keys**
         const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`;
-        if (!summaryStats[ringLabel]) summaryStats[ringLabel] = 0;
         summaryStats[ringLabel] += adjPop;
 
         const clippedGraphic = new Graphic({
@@ -177,3 +176,4 @@ const Widget = (props: AllWidgetProps<any>) => {
 };
 
 export default Widget;
+
