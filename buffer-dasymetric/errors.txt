@@ -12,3 +12,5 @@ ReferenceError: Select is not defined
     at as (react-dom.js:2:104233)
     at S (react-dom.js:2:130624)
     at MessagePort.T (react-dom.js:2:131156)
+
+import { TextInput, Button, Alert, Select, Option } from 'jimu-ui';
