@@ -88,7 +88,7 @@ const Widget = (props: AllWidgetProps<any>) => {
       bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
       state.jimuMapView.view.map.add(bufferLayer);
     }
-    bufferLayer.removeAll();
+    bufferLayer.removeAll(); // ✅ Clear previous layers before adding new ones
 
     const censusLayer = state.jimuMapView.view.map.allLayers.find(layer => layer.title === "CensusBlocks2010") as FeatureLayer;
     if (!censusLayer) {
@@ -100,36 +100,10 @@ const Widget = (props: AllWidgetProps<any>) => {
       "0-0.25 miles": 0, "0.25-0.5 miles": 0, "0.5-1 miles": 0, "1-2 miles": 0, "2-3 miles": 0, "3-4 miles": 0
     };
 
-    // ✅ **Explicitly process 0-0.25 miles separately**
-    const firstBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[0], "meters");
-    if (firstBuffer) {
-      const query = censusLayer.createQuery();
-      query.geometry = firstBuffer;
-      query.spatialRelationship = "intersects";
-      query.outFields = ["TOTALPOP", "ACRES"];
-
-      const results = await censusLayer.queryFeatures(query);
-      results.features.forEach(feature => {
-        const clippedFeature = geometryEngine.intersect(feature.geometry, firstBuffer);
-        if (!clippedFeature) return;
-
-        let originalAcres = feature.attributes?.ACRES;
-        let clippedAcres = geometryEngine.geodesicArea(clippedFeature, "acres");
-        if (!originalAcres || originalAcres <= 0 || isNaN(originalAcres)) return;
-
-        const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
-        const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
-
-        summaryStats["0-0.25 miles"] += adjPop;
-      });
-    }
-
-    for (let index = 1; index < BUFFER_DISTANCES_METERS.length; index++) {
+    for (let index = 0; index < BUFFER_DISTANCES_METERS.length; index++) {
       const outerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
-      const innerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index - 1], "meters");
-      if (!outerBuffer || !innerBuffer) continue;
-
-      const ringBuffer = geometryEngine.difference(outerBuffer, innerBuffer);
+      const innerBuffer = index > 0 ? geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index - 1], "meters") : null;
+      const ringBuffer = innerBuffer ? geometryEngine.difference(outerBuffer, innerBuffer) : outerBuffer;
       if (!ringBuffer) continue;
 
       const query = censusLayer.createQuery();
@@ -149,8 +123,28 @@ const Widget = (props: AllWidgetProps<any>) => {
         const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
         const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
 
-        const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1]}-${BUFFER_DISTANCES_MILES[index]} miles`;
+        const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
         summaryStats[ringLabel] += adjPop;
+
+        // ✅ **Add Graphics for Each Buffer**
+        const bufferGraphic = new Graphic({
+          geometry: clippedFeature,
+          symbol: new SimpleFillSymbol({
+            color: BUFFER_COLORS[index],
+            outline: { color: [0, 0, 0], width: 1 }
+          }),
+          attributes: {
+            ACRES2: clippedAcres,
+            ADJ_POP: adjPop
+          },
+          popupTemplate: {
+            title: `Census Block Data`,
+            content: `ACRES2: ${clippedAcres.toFixed(2)}<br> ADJ_POP: ${adjPop}`
+          }
+        });
+
+        bufferLayer.add(bufferGraphic);
+        console.log(`✅ Added Graphic for ${ringLabel}`);
       });
     }
 
@@ -176,4 +170,3 @@ const Widget = (props: AllWidgetProps<any>) => {
 };
 
 export default Widget;
-
