@@ -229,8 +229,8 @@ if (allBufferGeometries.length > 0) {
             }
           }}
         >
-          <h3>Statistics</h3>
-          <p><b>Site:</b>{state.siteName}</p>
+          <h2>Statistics</h2>
+          <h3><b>Site:</b>{state.siteName}</h3>
           <hr />
           {Object.entries(state.summaryStats).map(([buffer, adjPop]) => (
             <p key={buffer}><b>{buffer}:</b> {adjPop}</p>
