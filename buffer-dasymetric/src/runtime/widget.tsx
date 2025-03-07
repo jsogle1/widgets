@@ -94,11 +94,22 @@ const processBuffer = async (point: Point) => {
     return;
   }
 
-  let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
-  if (!bufferLayer) {
-    bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
-    state.jimuMapView.view.map.add(bufferLayer);
-  }
+let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
+if (!bufferLayer) {
+  bufferLayer = new GraphicsLayer({ 
+    id: "buffer-layer", 
+    title: "Buffer Rings",  // ✅ Name the layer
+    listMode: "hide"  // ✅ Hides it from legend if needed
+  });
+  state.jimuMapView.view.map.add(bufferLayer);
+}
+
+// ✅ Move the buffer layer BELOW all operational layers
+const allLayers = state.jimuMapView.view.map.allLayers;
+const basemapLayer = allLayers.find(layer => layer.type === "tile"); // Find basemap
+if (basemapLayer) {
+  state.jimuMapView.view.map.reorder(bufferLayer, allLayers.indexOf(basemapLayer) + 1);
+}
   bufferLayer.removeAll();
 
 const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
