@@ -94,56 +94,63 @@ const processBuffer = async (point: Point) => {
     return;
   }
 
-// ✅ Create FeatureLayer for better TOC/Legend support
-let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as FeatureLayer;
+  // ✅ Create the FeatureLayer (not GraphicsLayer) for better TOC/Legend support
+  let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as FeatureLayer;
+  if (!bufferLayer) {
+    bufferLayer = new FeatureLayer({
+      id: "buffer-layer",
+      title: "Dasymetric Population Density",
+      source: [],
+      fields: [
+        { name: "POP_DEN", alias: "Population Density", type: "double" },
+        { name: "ACRES2", alias: "Clipped Acres", type: "double" }
+      ],
+      objectIdField: "OBJECTID",
+      geometryType: "polygon",
+      spatialReference: { wkid: 4326 },
+      minScale: 0,  // Fully visible
+      maxScale: 0,   // Fully visible
+      renderer: densityRenderer
+    });
 
-if (!bufferLayer) {
-  bufferLayer = new FeatureLayer({
-    id: "buffer-layer",
-    title: "Dasymetric Buffers",
-    source: [],  // Empty source, we'll add graphics dynamically
-    fields: [
-      { name: "OBJECTID", type: "oid" },  // Required field for FeatureLayer
-      { name: "POP_DEN", alias: "Population Density", type: "double" },
-      { name: "ACRES2", alias: "Clipped Acres", type: "double" }
-    ],
-    objectIdField: "OBJECTID",
-    geometryType: "polygon",
-    spatialReference: state.jimuMapView.view.spatialReference, // Use the map's SR
-    renderer: {
-      type: "class-breaks",  // Class-based symbology
-      field: "POP_DEN",       // Symbolize by population density
-      classBreakInfos: [
-        { minValue: 0, maxValue: 0, symbol: new SimpleFillSymbol({ color: [255, 255, 255, 0.8] }) }, // White
-        { minValue: 1, maxValue: 100, symbol: new SimpleFillSymbol({ color: [255, 235, 175, 0.8] }) }, // Light Orange
-        { minValue: 101, maxValue: 1000, symbol: new SimpleFillSymbol({ color: [255, 170, 0, 0.8] }) }, // Orange
-        { minValue: 1001, maxValue: 2500, symbol: new SimpleFillSymbol({ color: [230, 76, 0, 0.8] }) }, // Dark Orange
-        { minValue: 2501, maxValue: 5000, symbol: new SimpleFillSymbol({ color: [168, 0, 0, 0.8] }) }, // Red
-        { minValue: 5001, maxValue: Infinity, symbol: new SimpleFillSymbol({ color: [115, 0, 76, 0.8] }) } // Dark Purple
-      ]
-    }
-  });
+    state.jimuMapView.view.map.add(bufferLayer);
+    console.log("🟦 Buffer Layer Type:", bufferLayer.type);
+  } else {
+    await bufferLayer.applyEdits({ deleteFeatures: bufferLayer.source.toArray() });
+  }
 
-  state.jimuMapView.view.map.add(bufferLayer);
-}
+  // ✅ Find the first basemap layer
+  const basemapLayer = state.jimuMapView.view.basemap.baseLayers.find(layer =>
+    layer.type.includes("tile") || layer.type.includes("vector")
+  );
 
-const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
-const censusLayer = state.jimuMapView.view.map.allLayers.find(
-  (layer) => layer.title === censusLayerTitle
-) as FeatureLayer;
-console.log("Selected Census Layer:", censusLayerTitle, censusLayer);
-if (!censusLayer) {
-  setState({
-    ...state,
-    errorMessage: "Census layer not found. Ensure 'CensusBlocks2010' is added to the map.",
-    isLoading: false
-  });
-  return;
-}
+  if (basemapLayer) {
+    // ✅ Move bufferLayer right above the basemap
+    state.jimuMapView.view.map.reorder(bufferLayer, state.jimuMapView.view.map.layers.indexOf(basemapLayer) + 1);
+    console.log("🟨 Buffer Layer Index in TOC:", state.jimuMapView.view.map.layers.indexOf(bufferLayer));
+
+  } else {
+    console.warn("⚠️ No basemap layer found! Buffer layer will remain in default order.");
+  }
+
+  const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
+  const censusLayer = state.jimuMapView.view.map.allLayers.find(
+    (layer) => layer.title === censusLayerTitle
+  ) as FeatureLayer;
+
+  if (!censusLayer) {
+    setState({
+      ...state,
+      errorMessage: "Census layer not found. Ensure 'CensusBlocks2010' is added to the map.",
+      isLoading: false
+    });
+    return;
+  }
+
 
   let summaryStats: { [key: string]: number } = {};
-
   let allBufferGeometries: __esri.Geometry[] = [];
+  let featuresToAdd: __esri.Graphic[] = [];
 
   for (let index = 0; index < BUFFER_DISTANCES_METERS.length; index++) {
     const outerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
@@ -156,9 +163,10 @@ if (!censusLayer) {
     const query = censusLayer.createQuery();
     query.geometry = ringBuffer;
     query.spatialRelationship = "intersects";
-    query.outFields = ["TOTALPOP", "ACRES", "POP_DEN"]; // ✅ Added POP_DEN field for classification
+    query.outFields = ["TOTALPOP", "ACRES", "POP_DEN"];
 
     const results = await censusLayer.queryFeatures(query);
+
     results.features.forEach(feature => {
       const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
       if (!clippedFeature) return;
@@ -170,49 +178,49 @@ if (!censusLayer) {
       const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
       const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
       const origPOP = feature.attributes?.TOTALPOP;
-      const popDensity = feature.attributes?.POP_DEN || 0; // ✅ Use existing POP_DEN field
+      const popDensity = feature.attributes?.POP_DEN || 0;
 
       const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
       summaryStats[ringLabel] = (summaryStats[ringLabel] || 0) + adjPop;
 
-      // ✅ Symbolizing census block using Population Density
+      // ✅ Collect Features for .applyEdits() instead of .add()
       const censusGraphic = new Graphic({
         geometry: clippedFeature,
-        symbol: new SimpleFillSymbol({
-          color: getChoroplethColor(popDensity),
-          outline: { color: [0, 0, 0], width: 1 } // Black outline for visibility
-        }),
         attributes: {
           ACRES2: clippedAcres,
-          POP_DEN: popDensity, // ✅ Displaying pop density instead of ADJ_POP
+          POP_DEN: popDensity
         },
         popupTemplate: {
           title: `Census Block Data`,
           content:
-           `<b>Population:</b> ${origPOP}<br>
-           <b>Population:</b> ${adjPop}<br>
-           <b>ACRES:</b> ${originalAcres.toFixed(2)}<br>
+            `<b>Population:</b> ${origPOP}<br>
+            <b>Population:</b> ${adjPop}<br>
+            <b>ACRES:</b> ${originalAcres.toFixed(2)}<br>
             <b>ACRES2:</b> ${clippedAcres.toFixed(2)}<br>
-            <b>POP_DEN:</b> ${popDensity}<br>
-          `
+            <b>POP_DEN:</b> ${popDensity}<br>`
         }
       });
 
-      await bufferLayer.applyEdits({ addFeatures: [censusGraphic] });
+      featuresToAdd.push(censusGraphic);
     });
   }
-// ✅ Ensure map zooms to the full extent of buffers
-if (allBufferGeometries.length > 0) {
-  const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
-  if (bufferExtent) {
-    state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err =>
-      console.error("Zoom error:", err)
-    );
-  }
-}
 
+  // ✅ Add Features with .applyEdits() for FeatureLayer
+  await bufferLayer.applyEdits({ addFeatures: featuresToAdd });
+
+  // ✅ Ensure map zooms to the full extent of buffers
+  if (allBufferGeometries.length > 0) {
+    const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
+    if (bufferExtent) {
+      state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err =>
+        console.error("Zoom error:", err)
+      );
+    }
+  }
+console.log("🟩 Density Renderer Applied:", bufferLayer.renderer);
   setState({ ...state, isLoading: false, summaryStats });
 };
+
 
   return (
     <div className="widget-container">
