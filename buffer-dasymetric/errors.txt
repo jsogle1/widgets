@@ -7,7 +7,53 @@ import * as projection from '@arcgis/core/geometry/projection';
 import { TextInput, Button, Alert, Select, Option } from 'jimu-ui';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
+import SimpleRenderer from '@arcgis/core/renderers/SimpleRenderer';
+import ClassBreaksRenderer from '@arcgis/core/renderers/ClassBreaksRenderer';
 import SimpleFillSymbol from '@arcgis/core/symbols/SimpleFillSymbol';
+
+// ✅ Define Population Density Categories for Symbology
+const densityRenderer = new ClassBreaksRenderer({
+  field: "POP_DEN", // Field to symbolize
+  classBreakInfos: [
+    {
+      minValue: 0,
+      maxValue: 0,
+      symbol: new SimpleFillSymbol({ color: [255, 255, 255, 0.8] }), // White
+      label: "0 (No population)"
+    },
+    {
+      minValue: 1,
+      maxValue: 100,
+      symbol: new SimpleFillSymbol({ color: [255, 235, 175, 0.8] }), // Light Orange
+      label: "1-100"
+    },
+    {
+      minValue: 101,
+      maxValue: 1000,
+      symbol: new SimpleFillSymbol({ color: [255, 170, 0, 0.8] }), // Orange
+      label: "101-1000"
+    },
+    {
+      minValue: 1001,
+      maxValue: 2500,
+      symbol: new SimpleFillSymbol({ color: [230, 76, 0, 0.8] }), // Dark Orange
+      label: "1001-2500"
+    },
+    {
+      minValue: 2501,
+      maxValue: 5000,
+      symbol: new SimpleFillSymbol({ color: [168, 0, 0, 0.8] }), // Red
+      label: "2501-5000"
+    },
+    {
+      minValue: 5001,
+      maxValue: Infinity,
+      symbol: new SimpleFillSymbol({ color: [115, 0, 76, 0.8] }), // Dark Purple
+      label: ">5000"
+    }
+  ]
+});
+
 
 // ✅ **Standardized Buffer Distances**
 const BUFFER_DISTANCES_MILES = [0.25, 0.5, 1, 2, 3, 4];  
