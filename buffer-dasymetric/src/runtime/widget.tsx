@@ -108,10 +108,13 @@ const processBuffer = async (point: Point) => {
       objectIdField: "OBJECTID",
       geometryType: "polygon",
       spatialReference: { wkid: 4326 },
+      minScale: 0,  // Fully visible
+      maxScale: 0,   // Fully visible
       renderer: densityRenderer
     });
 
     state.jimuMapView.view.map.add(bufferLayer);
+    console.log("🟦 Buffer Layer Type:", bufferLayer.type);
   } else {
     await bufferLayer.applyEdits({ deleteFeatures: bufferLayer.source.toArray() });
   }
@@ -124,6 +127,8 @@ const processBuffer = async (point: Point) => {
   if (basemapLayer) {
     // ✅ Move bufferLayer right above the basemap
     state.jimuMapView.view.map.reorder(bufferLayer, state.jimuMapView.view.map.layers.indexOf(basemapLayer) + 1);
+    console.log("🟨 Buffer Layer Index in TOC:", state.jimuMapView.view.map.layers.indexOf(bufferLayer));
+
   } else {
     console.warn("⚠️ No basemap layer found! Buffer layer will remain in default order.");
   }
@@ -141,6 +146,7 @@ const processBuffer = async (point: Point) => {
     });
     return;
   }
+
 
   let summaryStats: { [key: string]: number } = {};
   let allBufferGeometries: __esri.Geometry[] = [];
@@ -211,7 +217,7 @@ const processBuffer = async (point: Point) => {
       );
     }
   }
-
+console.log("🟩 Density Renderer Applied:", bufferLayer.renderer);
   setState({ ...state, isLoading: false, summaryStats });
 };
 
