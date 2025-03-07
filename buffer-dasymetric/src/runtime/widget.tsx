@@ -94,20 +94,16 @@ const processBuffer = async (point: Point) => {
     return;
   }
 
-  let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as GraphicsLayer;
-  if (!bufferLayer) {
-    bufferLayer = new GraphicsLayer({ id: "buffer-layer" });
-    state.jimuMapView.view.map.add(bufferLayer);
+  state.jimuMapView.view.map.add(bufferLayer);
 
-    // ✅ Ensure bufferLayer is below all operational layers but above basemap
-    const allLayers = state.jimuMapView.view.map.allLayers.toArray();  // Convert to array for indexing
-    const basemapIndex = allLayers.findIndex(layer => layer.type === "tile");
-    
-    if (basemapIndex !== -1) {
-      state.jimuMapView.view.map.reorder(bufferLayer, basemapIndex + 1);
-    } else {
-      console.warn("⚠️ Basemap not found! Buffer layer order might not be correct.");
-    }
+  // ✅ Find the first basemap layer
+  const basemapLayer = state.jimuMapView.view.basemap.baseLayers.find(layer => layer.type.includes("tile") || layer.type.includes("vector"));
+  
+  if (basemapLayer) {
+    // ✅ Move bufferLayer right above the basemap
+    state.jimuMapView.view.map.reorder(bufferLayer, state.jimuMapView.view.map.layers.indexOf(basemapLayer) + 1);
+  } else {
+    console.warn("⚠️ No basemap layer found! Buffer layer will remain in default order.");
   }
   bufferLayer.removeAll();
 
