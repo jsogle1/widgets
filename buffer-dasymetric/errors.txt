@@ -1,3 +1,5 @@
-import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
-import UniqueValueRenderer from "@arcgis/core/renderers/UniqueValueRenderer";
-import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol";
+// ✅ Define Population Density Categories for Symbology
+const getPopDensitySymbol = (color: number[]) => new SimpleFillSymbol({
+  color: color,
+  outline: { color: [0, 0, 0], width: 1 }
+});
