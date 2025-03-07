@@ -94,36 +94,57 @@ const processBuffer = async (point: Point) => {
     return;
   }
 
-  state.jimuMapView.view.map.add(bufferLayer);
+  // ✅ Create the FeatureLayer (not GraphicsLayer) for better TOC/Legend support
+  let bufferLayer = state.jimuMapView.view.map.findLayerById("buffer-layer") as FeatureLayer;
+  if (!bufferLayer) {
+    bufferLayer = new FeatureLayer({
+      id: "buffer-layer",
+      title: "Dasymetric Population Density",
+      source: [],
+      fields: [
+        { name: "POP_DEN", alias: "Population Density", type: "double" },
+        { name: "ACRES2", alias: "Clipped Acres", type: "double" }
+      ],
+      objectIdField: "OBJECTID",
+      geometryType: "polygon",
+      spatialReference: { wkid: 4326 },
+      renderer: densityRenderer
+    });
+
+    state.jimuMapView.view.map.add(bufferLayer);
+  } else {
+    await bufferLayer.applyEdits({ deleteFeatures: bufferLayer.source.toArray() });
+  }
 
   // ✅ Find the first basemap layer
-  const basemapLayer = state.jimuMapView.view.basemap.baseLayers.find(layer => layer.type.includes("tile") || layer.type.includes("vector"));
-  
+  const basemapLayer = state.jimuMapView.view.basemap.baseLayers.find(layer =>
+    layer.type.includes("tile") || layer.type.includes("vector")
+  );
+
   if (basemapLayer) {
     // ✅ Move bufferLayer right above the basemap
     state.jimuMapView.view.map.reorder(bufferLayer, state.jimuMapView.view.map.layers.indexOf(basemapLayer) + 1);
   } else {
     console.warn("⚠️ No basemap layer found! Buffer layer will remain in default order.");
   }
-  bufferLayer.removeAll();
 
-const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
-const censusLayer = state.jimuMapView.view.map.allLayers.find(
-  (layer) => layer.title === censusLayerTitle
-) as FeatureLayer;
-console.log("Selected Census Layer:", censusLayerTitle, censusLayer);
-if (!censusLayer) {
-  setState({
-    ...state,
-    errorMessage: "Census layer not found. Ensure 'CensusBlocks2010' is added to the map.",
-    isLoading: false
-  });
-  return;
-}
+  const censusLayerTitle = `CensusBlocks${state.selectedCensusYear}`;
+  const censusLayer = state.jimuMapView.view.map.allLayers.find(
+    (layer) => layer.title === censusLayerTitle
+  ) as FeatureLayer;
+
+  if (!censusLayer) {
+    setState({
+      ...state,
+      errorMessage: "Census layer not found. Ensure 'CensusBlocks2010' is added to the map.",
+      isLoading: false
+    });
+    return;
+  }
 
   let summaryStats: { [key: string]: number } = {};
-
   let allBufferGeometries: __esri.Geometry[] = [];
+  let featuresToAdd: __esri.Graphic[] = [];
 
   for (let index = 0; index < BUFFER_DISTANCES_METERS.length; index++) {
     const outerBuffer = geometryEngine.buffer(projectedPoint, BUFFER_DISTANCES_METERS[index], "meters");
@@ -136,9 +157,10 @@ if (!censusLayer) {
     const query = censusLayer.createQuery();
     query.geometry = ringBuffer;
     query.spatialRelationship = "intersects";
-    query.outFields = ["TOTALPOP", "ACRES", "POP_DEN"]; // ✅ Added POP_DEN field for classification
+    query.outFields = ["TOTALPOP", "ACRES", "POP_DEN"];
 
     const results = await censusLayer.queryFeatures(query);
+
     results.features.forEach(feature => {
       const clippedFeature = geometryEngine.intersect(feature.geometry, ringBuffer);
       if (!clippedFeature) return;
@@ -150,49 +172,49 @@ if (!censusLayer) {
       const ratio = clippedAcres > 0 ? clippedAcres / originalAcres : 0;
       const adjPop = Math.round(ratio * (feature.attributes?.TOTALPOP || 0));
       const origPOP = feature.attributes?.TOTALPOP;
-      const popDensity = feature.attributes?.POP_DEN || 0; // ✅ Use existing POP_DEN field
+      const popDensity = feature.attributes?.POP_DEN || 0;
 
       const ringLabel = `${BUFFER_DISTANCES_MILES[index - 1] || 0}-${BUFFER_DISTANCES_MILES[index]} miles`;
       summaryStats[ringLabel] = (summaryStats[ringLabel] || 0) + adjPop;
 
-      // ✅ Symbolizing census block using Population Density
+      // ✅ Collect Features for .applyEdits() instead of .add()
       const censusGraphic = new Graphic({
         geometry: clippedFeature,
-        symbol: new SimpleFillSymbol({
-          color: getChoroplethColor(popDensity),
-          outline: { color: [0, 0, 0], width: 1 } // Black outline for visibility
-        }),
         attributes: {
           ACRES2: clippedAcres,
-          POP_DEN: popDensity, // ✅ Displaying pop density instead of ADJ_POP
+          POP_DEN: popDensity
         },
         popupTemplate: {
           title: `Census Block Data`,
           content:
-           `<b>Population:</b> ${origPOP}<br>
-           <b>Population:</b> ${adjPop}<br>
-           <b>ACRES:</b> ${originalAcres.toFixed(2)}<br>
+            `<b>Population:</b> ${origPOP}<br>
+            <b>Population:</b> ${adjPop}<br>
+            <b>ACRES:</b> ${originalAcres.toFixed(2)}<br>
             <b>ACRES2:</b> ${clippedAcres.toFixed(2)}<br>
-            <b>POP_DEN:</b> ${popDensity}<br>
-          `
+            <b>POP_DEN:</b> ${popDensity}<br>`
         }
       });
 
-      bufferLayer.add(censusGraphic);
+      featuresToAdd.push(censusGraphic);
     });
   }
-// ✅ Ensure map zooms to the full extent of buffers
-if (allBufferGeometries.length > 0) {
-  const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
-  if (bufferExtent) {
-    state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err =>
-      console.error("Zoom error:", err)
-    );
+
+  // ✅ Add Features with .applyEdits() for FeatureLayer
+  await bufferLayer.applyEdits({ addFeatures: featuresToAdd });
+
+  // ✅ Ensure map zooms to the full extent of buffers
+  if (allBufferGeometries.length > 0) {
+    const bufferExtent = geometryEngine.union(allBufferGeometries)?.extent;
+    if (bufferExtent) {
+      state.jimuMapView.view.goTo(bufferExtent, { duration: 1500 }).catch(err =>
+        console.error("Zoom error:", err)
+      );
+    }
   }
-}
 
   setState({ ...state, isLoading: false, summaryStats });
 };
+
 
   return (
     <div className="widget-container">
