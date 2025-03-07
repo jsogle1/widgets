@@ -1,4 +1,3 @@
-42.1539722222
--72.3712222222
-
-Access to fetch at 'https://www.arcgis.com/sharing?f=json&token=3NKHt6i2urmWtqOuugvr9chS7nY72UM_sfmRxyH4KT-H32cg4SkrQnwH8YW4q_aL49bjfFhrrkvAF7zGAyGzWRGD7zsCEpC0EXCGmA2tjJzf4oMxfhiImpYmCBICXxWp_VqycDv0-q3hJvpfe5JQpIDldTNWmhz0JzOOaFzbtFEX5O4fDppB4lCZf8hiD_Et6tgCvMUzLJpbYrkyDP1C7h8fEhaWpgMArqPNnYUr_RA.' from origin 'https://localhost:3001' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import UniqueValueRenderer from "@arcgis/core/renderers/UniqueValueRenderer";
+import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol";
